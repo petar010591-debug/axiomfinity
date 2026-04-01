@@ -1,0 +1,159 @@
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import axios from 'axios';
+import { Clock, User, ArrowLeft, Share2, Tag } from 'lucide-react';
+import { ArticleCardSecondary } from '../components/ArticleCard';
+import { motion } from 'framer-motion';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+export default function ArticlePage() {
+  const { slug } = useParams();
+  const [article, setArticle] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    const fetchArticle = async () => {
+      setLoading(true);
+      try {
+        const { data } = await axios.get(`${API}/articles/by-slug/${slug}`);
+        setArticle(data);
+      } catch (e) {
+        if (e.response?.status === 404) setNotFound(true);
+      } finally { setLoading(false); }
+    };
+    fetchArticle();
+    window.scrollTo(0, 0);
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="h-8 w-48 bg-[#121620] rounded animate-pulse mb-4" />
+        <div className="h-12 bg-[#121620] rounded animate-pulse mb-4" />
+        <div className="h-[400px] bg-[#121620] rounded-lg animate-pulse mb-8" />
+        <div className="space-y-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-4 bg-[#121620] rounded animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+        <h1 className="text-4xl font-bold text-[#F3F4F6] mb-4" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Article Not Found</h1>
+        <p className="text-[#9CA3AF] mb-6">The article you're looking for doesn't exist or has been removed.</p>
+        <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-black rounded-lg font-medium hover:bg-[#C39F2F] transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to Home
+        </Link>
+      </div>
+    );
+  }
+
+  if (!article) return null;
+
+  const shareUrl = window.location.href;
+
+  return (
+    <div data-testid="article-page">
+      <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm text-[#6B7280] mb-6" data-testid="article-breadcrumb">
+          <Link to="/" className="hover:text-[#D4AF37] transition-colors">Home</Link>
+          <span>/</span>
+          {article.category_name && (
+            <>
+              <Link to={`/category/${article.category_slug}`} className="hover:text-[#D4AF37] transition-colors">{article.category_name}</Link>
+              <span>/</span>
+            </>
+          )}
+          <span className="text-[#9CA3AF] truncate">{article.title}</span>
+        </nav>
+
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center gap-3 mb-4">
+            {article.category_name && (
+              <Link to={`/category/${article.category_slug}`} className="px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37] text-black rounded hover:bg-[#C39F2F] transition-colors">
+                {article.category_name}
+              </Link>
+            )}
+            {article.is_sponsored && (
+              <span className="px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37]/20 text-[#D4AF37] rounded">Sponsored</span>
+            )}
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#F3F4F6] leading-tight mb-4" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }} data-testid="article-title">
+            {article.title}
+          </h1>
+
+          {article.excerpt && (
+            <p className="text-lg text-[#9CA3AF] mb-6 leading-relaxed">{article.excerpt}</p>
+          )}
+
+          <div className="flex items-center justify-between flex-wrap gap-4 pb-6 mb-8 border-b border-[#232B3E]">
+            <div className="flex items-center gap-4 text-sm text-[#6B7280]">
+              {article.author_name && (
+                <span className="flex items-center gap-1.5">
+                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
+                    <User className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  </div>
+                  <span className="text-[#F3F4F6] font-medium">{article.author_name}</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {formatDate(article.published_at)}</span>
+            </div>
+            <button
+              onClick={() => navigator.clipboard?.writeText(shareUrl)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#232B3E] text-[#9CA3AF] rounded-lg hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors"
+              data-testid="share-btn"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Share
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Featured Image */}
+        {article.featured_image && (
+          <div className="relative rounded-lg overflow-hidden mb-8">
+            <img src={article.featured_image} alt={article.title} className="w-full h-auto max-h-[500px] object-cover" data-testid="article-featured-image" />
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: article.content }} />
+
+        {/* Tags */}
+        {article.tags?.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap mt-8 pt-6 border-t border-[#232B3E]">
+            <Tag className="w-4 h-4 text-[#6B7280]" />
+            {article.tags.map(tag => (
+              <Link key={tag} to={`/search?q=${tag}`} className="px-3 py-1 text-xs font-medium text-[#9CA3AF] bg-[#1C2230] rounded-full hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors">
+                {tag}
+              </Link>
+            ))}
+          </div>
+        )}
+      </article>
+
+      {/* Related Articles */}
+      {article.related?.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <h2 className="text-2xl font-bold text-[#F3F4F6] mb-6" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Related Articles</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {article.related.map(a => (
+              <ArticleCardSecondary key={a.id} article={a} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
