@@ -332,7 +332,7 @@ async def admin_get_article(article_id: str, user: dict = Depends(get_current_us
         raise HTTPException(status_code=404, detail="Article not found")
     return serialize_doc(article)
 
-@api_router.post("/admin/articles")
+@api_router.post("/admin/articles", status_code=201)
 async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_current_user)):
     slug = slugify(data.title)
     existing = await db.articles.find_one({"slug": slug})
@@ -426,7 +426,7 @@ async def admin_delete_article(article_id: str, user: dict = Depends(get_current
     return {"message": "Article deleted"}
 
 # ─── ADMIN CATEGORIES ───
-@api_router.post("/admin/categories")
+@api_router.post("/admin/categories", status_code=201)
 async def admin_create_category(data: CategoryCreate, user: dict = Depends(get_current_user)):
     slug = slugify(data.name)
     existing = await db.categories.find_one({"slug": slug})
@@ -453,7 +453,7 @@ async def admin_delete_category(cat_id: str, user: dict = Depends(get_current_us
     return {"message": "Category deleted"}
 
 # ─── ADMIN TAGS ───
-@api_router.post("/admin/tags")
+@api_router.post("/admin/tags", status_code=201)
 async def admin_create_tag(data: TagCreate, user: dict = Depends(get_current_user)):
     slug = slugify(data.name)
     existing = await db.tags.find_one({"slug": slug})
