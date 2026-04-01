@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -11,6 +11,8 @@ import bcrypt
 import jwt
 import httpx
 import secrets
+import uuid
+import requests as sync_requests
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -91,6 +93,44 @@ def serialize_doc(doc):
 def serialize_list(docs):
     return [serialize_doc(d) for d in docs]
 
+# ─── OBJECT STORAGE ───
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "finnews"
+_storage_key = None
+
+def init_storage():
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    resp = sync_requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    _storage_key = resp.json()["storage_key"]
+    return _storage_key
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    resp = sync_requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
+    resp.raise_for_status()
+    return resp.json()
+
+def get_object(path: str):
+    key = init_storage()
+    resp = sync_requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+# ─── RBAC ───
+ROLES_HIERARCHY = {"super_admin": 4, "admin": 3, "editor": 2, "author": 1}
+
+def require_role(*roles):
+    async def check(request: Request):
+        user = await get_current_user(request)
+        if user["role"] not in roles and user["role"] != "super_admin":
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return user
+    return Depends(check)
+
 # ─── PYDANTIC MODELS ───
 class LoginRequest(BaseModel):
     email: str
@@ -108,6 +148,23 @@ class ArticleCreate(BaseModel):
     is_sponsored: bool = False
     meta_title: Optional[str] = ""
     meta_description: Optional[str] = ""
+    scheduled_at: Optional[str] = None
+    og_image: Optional[str] = ""
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    bio: Optional[str] = ""
+    avatar_url: Optional[str] = ""
+    social_twitter: Optional[str] = ""
+    social_linkedin: Optional[str] = ""
+    website: Optional[str] = ""
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    name: str
+    role: str = "author"
+    bio: Optional[str] = ""
 
 class CategoryCreate(BaseModel):
     name: str
@@ -154,7 +211,18 @@ async def logout(response: Response):
 
 @api_router.get("/auth/me")
 async def get_me(user: dict = Depends(get_current_user)):
+    full_user = await db.users.find_one({"_id": ObjectId(user["id"])}, {"password_hash": 0})
+    if full_user:
+        return serialize_doc(full_user)
     return user
+
+# Helper to build public article query (handles scheduled)
+def build_public_query():
+    now = datetime.now(timezone.utc).isoformat()
+    return {"$or": [
+        {"status": "published"},
+        {"status": "scheduled", "scheduled_at": {"$lte": now}}
+    ]}
 
 # ─── PUBLIC ARTICLE ROUTES ───
 @api_router.get("/articles")
@@ -165,9 +233,10 @@ async def get_articles(
     limit: int = Query(12, ge=1, le=50),
     status: Optional[str] = "published"
 ):
-    query = {}
-    if status:
-        query["status"] = status
+    if status == "published":
+        query = build_public_query()
+    else:
+        query = {"status": status} if status else {}
     if category:
         query["categories"] = category
     if tag:
@@ -216,12 +285,22 @@ async def get_featured():
 
 @api_router.get("/articles/by-slug/{slug}")
 async def get_article_by_slug(slug: str):
-    article = await db.articles.find_one({"slug": slug, "status": "published"})
+    pub_query = build_public_query()
+    article = await db.articles.find_one({"slug": slug, **pub_query})
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     result = serialize_doc(article)
+    # Ensure OG fields
+    result["og_image"] = result.get("og_image") or result.get("featured_image", "")
+    result["og_title"] = result.get("meta_title") or result.get("title", "")
+    result["og_description"] = result.get("meta_description") or result.get("excerpt", "")
+    # Get author info
+    if result.get("author_id"):
+        author = await db.users.find_one({"_id": ObjectId(result["author_id"])}, {"password_hash": 0, "_id": 1, "name": 1, "bio": 1, "avatar_url": 1, "social_twitter": 1})
+        if author:
+            result["author"] = serialize_doc(author)
     # Get related articles
-    related_query = {"status": "published", "slug": {"$ne": slug}}
+    related_query = {**build_public_query(), "slug": {"$ne": slug}}
     if result.get("category_slug"):
         related_query["category_slug"] = result["category_slug"]
     related = await db.articles.find(related_query).sort("published_at", -1).limit(3).to_list(3)
@@ -331,7 +410,7 @@ async def market_ticker():
 # ─── HOMEPAGE SECTIONS ───
 @api_router.get("/articles/homepage-sections")
 async def get_homepage_sections():
-    base_query = {"status": "published"}
+    base_query = build_public_query()
     # Latest (all articles, for hero)
     latest = await db.articles.find(base_query).sort("published_at", -1).limit(5).to_list(5)
     latest_ids = [a["_id"] for a in latest]
@@ -416,6 +495,8 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         "status": data.status,
         "is_sponsored": data.is_sponsored,
         "published_at": now if data.status == "published" else None,
+        "scheduled_at": data.scheduled_at,
+        "og_image": data.og_image or data.featured_image,
         "meta_title": data.meta_title or data.title,
         "meta_description": data.meta_description or data.excerpt,
         "created_at": now,
@@ -459,12 +540,16 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         "tags": data.tags,
         "status": data.status,
         "is_sponsored": data.is_sponsored,
+        "scheduled_at": data.scheduled_at,
+        "og_image": data.og_image or data.featured_image,
         "meta_title": data.meta_title or data.title,
         "meta_description": data.meta_description or data.excerpt,
         "updated_at": now,
     }
     if data.status == "published" and existing.get("status") != "published":
         update["published_at"] = now
+    if data.status == "scheduled" and data.scheduled_at:
+        update["published_at"] = data.scheduled_at
     # Update slug only if title changed
     if data.title != existing.get("title"):
         new_slug = slugify(data.title)
@@ -573,10 +658,151 @@ async def admin_stats(user: dict = Depends(get_current_user)):
     total_articles = await db.articles.count_documents({})
     published = await db.articles.count_documents({"status": "published"})
     drafts = await db.articles.count_documents({"status": "draft"})
+    scheduled = await db.articles.count_documents({"status": "scheduled"})
     categories = await db.categories.count_documents({})
     tags = await db.tags.count_documents({})
     pages = await db.pages.count_documents({})
-    return {"total_articles": total_articles, "published": published, "drafts": drafts, "categories": categories, "tags": tags, "pages": pages}
+    users = await db.users.count_documents({})
+    return {"total_articles": total_articles, "published": published, "drafts": drafts, "scheduled": scheduled, "categories": categories, "tags": tags, "pages": pages, "users": users}
+
+# ─── FILE UPLOAD ───
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+    max_size = 10 * 1024 * 1024  # 10MB
+    data = await file.read()
+    if len(data) > max_size:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "png"
+    filename = f"{APP_NAME}/{uuid.uuid4().hex}.{ext}"
+    try:
+        result = put_object(filename, data, file.content_type)
+        return {"url": result.get("url", ""), "path": filename, "size": len(data)}
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
+
+# ─── AUTHOR PROFILES ───
+@api_router.get("/authors/{author_id}")
+async def get_author_profile(author_id: str):
+    user = await db.users.find_one({"_id": ObjectId(author_id)}, {"password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Author not found")
+    profile = serialize_doc(user)
+    articles = await db.articles.find({"author_id": author_id, "status": "published"}).sort("published_at", -1).limit(20).to_list(20)
+    profile["articles"] = serialize_list(articles)
+    return profile
+
+@api_router.put("/admin/profile")
+async def update_profile(data: UserProfileUpdate, user: dict = Depends(get_current_user)):
+    update = {}
+    if data.name is not None:
+        update["name"] = data.name
+    if data.bio is not None:
+        update["bio"] = data.bio
+    if data.avatar_url is not None:
+        update["avatar_url"] = data.avatar_url
+    if data.social_twitter is not None:
+        update["social_twitter"] = data.social_twitter
+    if data.social_linkedin is not None:
+        update["social_linkedin"] = data.social_linkedin
+    if data.website is not None:
+        update["website"] = data.website
+    if update:
+        await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": update})
+        # Update author_name on articles if name changed
+        if "name" in update:
+            await db.articles.update_many({"author_id": user["id"]}, {"$set": {"author_name": update["name"]}})
+    updated = await db.users.find_one({"_id": ObjectId(user["id"])}, {"password_hash": 0})
+    return serialize_doc(updated)
+
+# ─── ADMIN USER MANAGEMENT (super_admin only) ───
+@api_router.get("/admin/users")
+async def admin_list_users(user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    users = await db.users.find({}, {"password_hash": 0}).to_list(100)
+    return serialize_list(users)
+
+@api_router.post("/admin/users", status_code=201)
+async def admin_create_user(data: UserCreate, user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    email = data.email.strip().lower()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already in use")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "email": email,
+        "password_hash": hash_password(data.password),
+        "name": data.name,
+        "role": data.role,
+        "bio": data.bio or "",
+        "avatar_url": "",
+        "social_twitter": "",
+        "social_linkedin": "",
+        "website": "",
+        "created_at": now,
+    }
+    result = await db.users.insert_one(doc)
+    doc["id"] = str(result.inserted_id)
+    doc.pop("_id", None)
+    doc.pop("password_hash", None)
+    return doc
+
+@api_router.put("/admin/users/{user_id}/role")
+async def admin_update_user_role(user_id: str, role: str = Query(...), user: dict = Depends(get_current_user)):
+    if user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Only super admin can change roles")
+    if role not in ROLES_HIERARCHY:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"role": role}})
+    return {"message": "Role updated"}
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Only super admin can delete users")
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    await db.users.delete_one({"_id": ObjectId(user_id)})
+    return {"message": "User deleted"}
+
+# ─── XML SITEMAP ───
+@api_router.get("/sitemap.xml")
+async def sitemap():
+    from fastapi.responses import Response as FastResponse
+    base_url = os.environ.get("SITE_URL", "https://finnews.com")
+    articles = await db.articles.find(build_public_query(), {"slug": 1, "category_slug": 1, "updated_at": 1}).to_list(5000)
+    categories = await db.categories.find({}, {"slug": 1}).to_list(100)
+    pages = await db.pages.find({}, {"slug": 1, "updated_at": 1}).to_list(100)
+
+    urls = [f'  <url><loc>{base_url}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>']
+    urls.append(f'  <url><loc>{base_url}/latest</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>')
+    urls.append(f'  <url><loc>{base_url}/education</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>')
+    urls.append(f'  <url><loc>{base_url}/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>')
+    urls.append(f'  <url><loc>{base_url}/contact</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>')
+
+    for cat in categories:
+        urls.append(f'  <url><loc>{base_url}/category/{cat["slug"]}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>')
+
+    for article in articles:
+        slug = article.get("slug", "")
+        cat_slug = article.get("category_slug", "news")
+        lastmod = article.get("updated_at", "")
+        mod_tag = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+        urls.append(f'  <url><loc>{base_url}/{cat_slug}/{slug}</loc>{mod_tag}<changefreq>weekly</changefreq><priority>0.7</priority></url>')
+
+    for pg in pages:
+        urls.append(f'  <url><loc>{base_url}/page/{pg["slug"]}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>')
+
+    xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{chr(10).join(urls)}
+</urlset>'''
+    return FastResponse(content=xml, media_type="application/xml")
 
 # ─── INCLUDE ROUTER ───
 app.include_router(api_router)
@@ -773,13 +999,35 @@ async def seed_admin():
             "email": ADMIN_EMAIL.lower(),
             "password_hash": hashed,
             "name": "Admin",
-            "role": "admin",
+            "role": "super_admin",
+            "bio": "Chief Editor at FinNews",
+            "avatar_url": "",
+            "social_twitter": "",
+            "social_linkedin": "",
+            "website": "",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         logger.info(f"Admin user created: {ADMIN_EMAIL}")
-    elif not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-        await db.users.update_one({"email": ADMIN_EMAIL.lower()}, {"$set": {"password_hash": hash_password(ADMIN_PASSWORD)}})
-        logger.info("Admin password updated")
+    else:
+        # Ensure super_admin role and profile fields
+        updates = {}
+        if existing.get("role") != "super_admin":
+            updates["role"] = "super_admin"
+        if "bio" not in existing:
+            updates["bio"] = "Chief Editor at FinNews"
+        if "avatar_url" not in existing:
+            updates["avatar_url"] = ""
+        if "social_twitter" not in existing:
+            updates["social_twitter"] = ""
+        if "social_linkedin" not in existing:
+            updates["social_linkedin"] = ""
+        if "website" not in existing:
+            updates["website"] = ""
+        if not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
+            updates["password_hash"] = hash_password(ADMIN_PASSWORD)
+        if updates:
+            await db.users.update_one({"email": ADMIN_EMAIL.lower()}, {"$set": updates})
+            logger.info("Admin user updated")
 
 async def seed_data():
     # Seed categories
@@ -833,6 +1081,12 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await seed_admin()
     await seed_data()
+    # Init storage
+    try:
+        init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Storage init deferred: {e}")
     # Write test credentials
     os.makedirs("/app/memory", exist_ok=True)
     with open("/app/memory/test_credentials.md", "w") as f:

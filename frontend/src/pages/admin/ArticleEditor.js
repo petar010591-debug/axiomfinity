@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { Save, ArrowLeft, Eye } from 'lucide-react';
+import { Save, ArrowLeft, Eye, Calendar } from 'lucide-react';
+import TipTapEditor from '../../components/TipTapEditor';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -12,7 +13,7 @@ export default function ArticleEditor() {
   const isEditing = !!id;
 
   const [form, setForm] = useState({
-    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: ''
+    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: ''
   });
   const [categories, setCategories] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -45,6 +46,8 @@ export default function ArticleEditor() {
             is_sponsored: data.is_sponsored || false,
             meta_title: data.meta_title || '',
             meta_description: data.meta_description || '',
+            scheduled_at: data.scheduled_at || '',
+            og_image: data.og_image || '',
           });
         }
       } catch {}
@@ -121,15 +124,10 @@ export default function ArticleEditor() {
           />
         </div>
 
-        {/* Content */}
+        {/* Content - TipTap WYSIWYG */}
         <div>
-          <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Content (HTML)</label>
-          <textarea
-            rows={12} value={form.content} onChange={e => updateField('content', e.target.value)}
-            className="w-full px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-y font-mono"
-            placeholder="<h2>Section Title</h2><p>Article content...</p>"
-            data-testid="article-content-input"
-          />
+          <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Content</label>
+          <TipTapEditor content={form.content} onChange={(html) => updateField('content', html)} />
         </div>
 
         {/* Featured Image URL */}
@@ -170,10 +168,28 @@ export default function ArticleEditor() {
             >
               <option value="draft">Draft</option>
               <option value="published">Published</option>
+              <option value="scheduled">Scheduled</option>
               <option value="archived">Archived</option>
             </select>
           </div>
         </div>
+
+        {/* Scheduling */}
+        {form.status === 'scheduled' && (
+          <div className="bg-[#1C2230] border border-[#232B3E] rounded-lg p-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-[#D4AF37] mb-2">
+              <Calendar className="w-4 h-4" /> Schedule Publication
+            </label>
+            <input
+              type="datetime-local"
+              value={form.scheduled_at ? form.scheduled_at.slice(0, 16) : ''}
+              onChange={e => updateField('scheduled_at', e.target.value ? new Date(e.target.value).toISOString() : '')}
+              className="w-full max-w-xs px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
+              data-testid="article-schedule-input"
+            />
+            <p className="text-xs text-[#6B7280] mt-2">Article will be automatically published at the scheduled time.</p>
+          </div>
+        )}
 
         {/* Secondary Categories */}
         <div>
@@ -252,6 +268,10 @@ export default function ArticleEditor() {
             <div>
               <label className="block text-xs text-[#6B7280] mb-1">Meta Description</label>
               <textarea rows={2} value={form.meta_description} onChange={e => updateField('meta_description', e.target.value)} className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-[#6B7280] mb-1">OG Image URL (for social sharing)</label>
+              <input type="text" value={form.og_image} onChange={e => updateField('og_image', e.target.value)} placeholder="Defaults to featured image" className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]" data-testid="og-image-input" />
             </div>
           </div>
         </details>

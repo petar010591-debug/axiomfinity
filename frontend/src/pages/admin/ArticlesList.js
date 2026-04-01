@@ -46,6 +46,7 @@ export default function ArticlesList() {
     const styles = {
       published: 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30',
       draft: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/30',
+      scheduled: 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30',
       archived: 'bg-[#6B7280]/10 text-[#6B7280] border-[#6B7280]/30',
     };
     return (
@@ -73,7 +74,7 @@ export default function ArticlesList() {
 
       {/* Filters */}
       <div className="flex items-center gap-2 mb-6" data-testid="article-status-filter">
-        {['', 'published', 'draft', 'archived'].map(s => (
+        {['', 'published', 'draft', 'scheduled', 'archived'].map(s => (
           <button
             key={s}
             onClick={() => { setStatusFilter(s); setPage(1); }}

@@ -1,5 +1,6 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "./contexts/AuthContext";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -11,12 +12,15 @@ import EducationPage from "./pages/EducationPage";
 import AboutPage, { ContactPage } from "./pages/AboutPage";
 import SearchPage from "./pages/SearchPage";
 import LegalPage from "./pages/LegalPage";
+import AuthorProfile from "./pages/AuthorProfile";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ArticlesList from "./pages/admin/ArticlesList";
 import ArticleEditor from "./pages/admin/ArticleEditor";
 import CategoriesManager from "./pages/admin/CategoriesManager";
 import HomepageCuration from "./pages/admin/HomepageCuration";
+import UsersManager from "./pages/admin/UsersManager";
+import AdminProfile from "./pages/admin/AdminProfile";
 
 function Layout({ children }) {
   const location = useLocation();
@@ -40,34 +44,39 @@ function Layout({ children }) {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/latest" element={<LatestNewsPage />} />
-            <Route path="/category/:slug" element={<LatestNewsPage />} />
-            <Route path="/education" element={<EducationPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/page/:slug" element={<LegalPage />} />
-            <Route path="/:category/:slug" element={<ArticlePage />} />
+    <HelmetProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Layout>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/latest" element={<LatestNewsPage />} />
+              <Route path="/category/:slug" element={<LatestNewsPage />} />
+              <Route path="/education" element={<EducationPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/page/:slug" element={<LegalPage />} />
+              <Route path="/author/:authorId" element={<AuthorProfile />} />
+              <Route path="/:category/:slug" element={<ArticlePage />} />
 
-            {/* Admin Routes */}
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminDashboard />}>
-              <Route path="articles" element={<ArticlesList />} />
-              <Route path="articles/new" element={<ArticleEditor />} />
-              <Route path="articles/edit/:id" element={<ArticleEditor />} />
-              <Route path="categories" element={<CategoriesManager />} />
-              <Route path="homepage" element={<HomepageCuration />} />
-            </Route>
-          </Routes>
-        </Layout>
-      </BrowserRouter>
-    </AuthProvider>
+              {/* Admin Routes */}
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<AdminDashboard />}>
+                <Route path="articles" element={<ArticlesList />} />
+                <Route path="articles/new" element={<ArticleEditor />} />
+                <Route path="articles/edit/:id" element={<ArticleEditor />} />
+                <Route path="categories" element={<CategoriesManager />} />
+                <Route path="homepage" element={<HomepageCuration />} />
+                <Route path="users" element={<UsersManager />} />
+                <Route path="profile" element={<AdminProfile />} />
+              </Route>
+            </Routes>
+          </Layout>
+        </BrowserRouter>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }
 

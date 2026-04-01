@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
 import {
-  LayoutDashboard, FileText, FolderOpen, Tag, Home, LogOut, ChevronRight, Plus, Eye, PenLine, Archive, Menu, X
+  LayoutDashboard, FileText, FolderOpen, Tag, Home, LogOut, ChevronRight, Plus, Eye, PenLine, Archive, Menu, X, Users, UserCircle, Clock
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -14,6 +14,8 @@ const SIDEBAR_ITEMS = [
   { label: 'Articles', href: '/admin/articles', icon: FileText },
   { label: 'Categories', href: '/admin/categories', icon: FolderOpen },
   { label: 'Homepage', href: '/admin/homepage', icon: Home },
+  { label: 'Team', href: '/admin/users', icon: Users },
+  { label: 'My Profile', href: '/admin/profile', icon: UserCircle },
 ];
 
 export default function AdminDashboard() {
@@ -131,9 +133,9 @@ export default function AdminDashboard() {
                     { label: 'Total Articles', value: stats.total_articles, icon: FileText, color: '#D4AF37' },
                     { label: 'Published', value: stats.published, icon: Eye, color: '#10B981' },
                     { label: 'Drafts', value: stats.drafts, icon: PenLine, color: '#F59E0B' },
+                    { label: 'Scheduled', value: stats.scheduled, icon: Clock, color: '#8B5CF6' },
                     { label: 'Categories', value: stats.categories, icon: FolderOpen, color: '#3B82F6' },
-                    { label: 'Tags', value: stats.tags, icon: Tag, color: '#8B5CF6' },
-                    { label: 'Pages', value: stats.pages, icon: Archive, color: '#EC4899' },
+                    { label: 'Team', value: stats.users, icon: Users, color: '#EC4899' },
                   ].map(s => (
                     <div key={s.label} className="bg-[#121620] border border-[#232B3E] rounded-lg p-5">
                       <div className="flex items-center justify-between mb-3">

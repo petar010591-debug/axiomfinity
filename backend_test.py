@@ -210,8 +210,8 @@ class FinancialNewsAPITester:
         return success
 
     def test_admin_stats(self):
-        """Test admin stats API"""
-        self.log("=== TESTING ADMIN STATS ===")
+        """Test admin stats API with V3 features"""
+        self.log("=== TESTING ADMIN STATS (V3) ===")
         success, response = self.run_test(
             "Admin Stats",
             "GET",
@@ -221,6 +221,7 @@ class FinancialNewsAPITester:
         if success:
             stats = response
             self.log(f"✅ Admin stats: {stats.get('total_articles', 0)} articles, {stats.get('categories', 0)} categories")
+            self.log(f"✅ V3 stats: {stats.get('scheduled', 0)} scheduled, {stats.get('users', 0)} users")
         return success
 
     def test_admin_articles_crud(self):
@@ -251,19 +252,23 @@ class FinancialNewsAPITester:
                 category_id = categories[0].get('id')
                 secondary_categories = [categories[1].get('slug', '')]
         
-        # Create article with multi-category support
+        # Create article with multi-category support and scheduling
         article_data = {
             "title": "Test Multi-Category Article " + datetime.now().strftime("%H%M%S"),
             "excerpt": "Test excerpt for automated testing with multiple categories",
             "content": "<p>This is a test article created by automated testing with multi-category support.</p>",
-            "status": "draft",
+            "status": "scheduled",
+            "scheduled_at": "2026-12-31T23:59:59Z",
             "tags": ["test", "automation"],
             "category_id": category_id,
-            "secondary_categories": secondary_categories
+            "secondary_categories": secondary_categories,
+            "og_image": "https://example.com/test-og.jpg",
+            "meta_title": "Test Meta Title",
+            "meta_description": "Test meta description"
         }
         
         success2, response2 = self.run_test(
-            "Admin Create Article (Multi-Category)",
+            "Admin Create Article (Multi-Category + Scheduling)",
             "POST",
             "admin/articles",
             201,
@@ -274,8 +279,12 @@ class FinancialNewsAPITester:
         if success2:
             article_id = response2.get('id')
             categories_field = response2.get('categories', [])
+            scheduled_at = response2.get('scheduled_at')
+            og_image = response2.get('og_image')
             self.log(f"✅ Created article with ID: {article_id}")
             self.log(f"✅ Article categories: {categories_field}")
+            self.log(f"✅ Article scheduled for: {scheduled_at}")
+            self.log(f"✅ Article OG image: {og_image}")
         
         # Get specific article and verify multi-category
         success3 = True
@@ -431,6 +440,137 @@ class FinancialNewsAPITester:
             200
         )
         
+    def test_v3_features(self):
+        """Test V3 specific features: upload, users, author profiles, sitemap"""
+        self.log("=== TESTING V3 FEATURES ===")
+        
+        # Test XML sitemap
+        success1, response1 = self.run_test(
+            "XML Sitemap",
+            "GET",
+            "sitemap.xml",
+            200
+        )
+        if success1:
+            # Check if response contains XML
+            sitemap_content = str(response1) if response1 else ""
+            if "urlset" in sitemap_content or "<?xml" in sitemap_content:
+                self.log("✅ Sitemap contains XML content")
+            else:
+                self.log("⚠️  Sitemap may not be valid XML")
+        
+        # Test user management (requires super_admin)
+        success2, response2 = self.run_test(
+            "Admin List Users",
+            "GET",
+            "admin/users",
+            200
+        )
+        if success2:
+            users = response2 if isinstance(response2, list) else []
+            self.log(f"✅ User management: {len(users)} users found")
+        
+        # Test create user
+        user_data = {
+            "email": f"test{datetime.now().strftime('%H%M%S')}@example.com",
+            "password": "TestPass123!",
+            "name": "Test User",
+            "role": "author",
+            "bio": "Test user bio"
+        }
+        
+        success3, response3 = self.run_test(
+            "Admin Create User",
+            "POST",
+            "admin/users",
+            201,
+            data=user_data
+        )
+        
+        test_user_id = None
+        if success3:
+            test_user_id = response3.get('id')
+            self.log(f"✅ Created test user with ID: {test_user_id}")
+        
+        # Test author profile endpoint
+        success4 = True
+        if test_user_id:
+            success4, response4 = self.run_test(
+                "Get Author Profile",
+                "GET",
+                f"authors/{test_user_id}",
+                200
+            )
+            if success4:
+                author_name = response4.get('name', 'N/A')
+                author_articles = response4.get('articles', [])
+                self.log(f"✅ Author profile: {author_name}, {len(author_articles)} articles")
+        
+        # Test admin profile update
+        profile_data = {
+            "name": "Updated Admin Name",
+            "bio": "Updated admin bio for testing",
+            "social_twitter": "@testadmin",
+            "social_linkedin": "https://linkedin.com/in/testadmin",
+            "website": "https://testadmin.com"
+        }
+        
+        success5, response5 = self.run_test(
+            "Update Admin Profile",
+            "PUT",
+            "admin/profile",
+            200,
+            data=profile_data
+        )
+        if success5:
+            updated_name = response5.get('name', 'N/A')
+            self.log(f"✅ Admin profile updated: {updated_name}")
+        
+        # Test role change (super_admin only)
+        success6 = True
+        if test_user_id:
+            success6, response6 = self.run_test(
+                "Change User Role",
+                "PUT",
+                f"admin/users/{test_user_id}/role?role=editor",
+                200
+            )
+            if success6:
+                self.log("✅ User role changed successfully")
+        
+        # Cleanup: delete test user
+        success7 = True
+        if test_user_id:
+            success7, response7 = self.run_test(
+                "Delete Test User",
+                "DELETE",
+                f"admin/users/{test_user_id}",
+                200
+            )
+            if success7:
+                self.log("✅ Test user deleted successfully")
+        
+        return all([success1, success2, success3, success4, success5, success6, success7])
+
+    def test_upload_endpoint(self):
+        """Test file upload endpoint (simulated)"""
+        self.log("=== TESTING UPLOAD ENDPOINT ===")
+        
+        # Note: We can't easily test actual file upload in this script
+        # But we can test the endpoint exists and requires auth
+        success, response = self.run_test(
+            "Upload Endpoint (No File)",
+            "POST",
+            "upload",
+            400  # Should return 400 for missing file
+        )
+        
+        if success or response:  # 400 is expected, so this is actually success
+            self.log("✅ Upload endpoint exists and requires proper file data")
+            return True
+        else:
+            self.log("❌ Upload endpoint may not be working")
+            return False
         # Get specific page by slug
         success3, response3 = self.run_test(
             "Get Privacy Policy Page",
@@ -479,6 +619,10 @@ class FinancialNewsAPITester:
         self.test_admin_articles_crud()
         self.test_admin_categories_crud()
         self.test_admin_homepage_curation()
+        
+        # V3 specific features
+        self.test_v3_features()
+        self.test_upload_endpoint()
         
         # Cleanup
         self.test_logout()

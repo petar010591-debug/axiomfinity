@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import { Helmet } from 'react-helmet-async';
 import { Clock, User, ArrowLeft, Share2, Tag } from 'lucide-react';
 import { ArticleCardSecondary } from '../components/ArticleCard';
 import { motion } from 'framer-motion';
@@ -32,6 +33,17 @@ export default function ArticlePage() {
     window.scrollTo(0, 0);
   }, [slug]);
 
+  // Load Twitter widget for embeds
+  useEffect(() => {
+    if (article?.content?.includes('data-twitter-embed')) {
+      const script = document.createElement('script');
+      script.src = 'https://platform.twitter.com/widgets.js';
+      script.async = true;
+      document.body.appendChild(script);
+      return () => { try { document.body.removeChild(script); } catch {} };
+    }
+  }, [article]);
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -60,9 +72,25 @@ export default function ArticlePage() {
   if (!article) return null;
 
   const shareUrl = window.location.href;
+  const ogImage = article.og_image || article.featured_image;
+  const ogTitle = article.og_title || article.title;
+  const ogDescription = article.og_description || article.excerpt;
 
   return (
     <div data-testid="article-page">
+      <Helmet>
+        <title>{ogTitle} | FinNews</title>
+        <meta name="description" content={ogDescription} />
+        <meta property="og:title" content={ogTitle} />
+        <meta property="og:description" content={ogDescription} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:url" content={shareUrl} />
+        <meta property="og:type" content="article" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={ogTitle} />
+        <meta name="twitter:description" content={ogDescription} />
+        <meta name="twitter:image" content={ogImage} />
+      </Helmet>
       <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-[#6B7280] mb-6" data-testid="article-breadcrumb">
@@ -100,13 +128,17 @@ export default function ArticlePage() {
 
           <div className="flex items-center justify-between flex-wrap gap-4 pb-6 mb-8 border-b border-[#232B3E]">
             <div className="flex items-center gap-4 text-sm text-[#6B7280]">
-              {article.author_name && (
-                <span className="flex items-center gap-1.5">
-                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
-                    <User className="w-3.5 h-3.5 text-[#D4AF37]" />
+              {article.author_id && (
+                <Link to={`/author/${article.author_id}`} className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors" data-testid="article-author-link">
+                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden">
+                    {article.author?.avatar_url ? (
+                      <img src={article.author.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    )}
                   </div>
                   <span className="text-[#F3F4F6] font-medium">{article.author_name}</span>
-                </span>
+                </Link>
               )}
               <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {formatDate(article.published_at)}</span>
             </div>
