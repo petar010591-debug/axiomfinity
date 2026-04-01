@@ -1,0 +1,120 @@
+{
+  "theme": "dark",
+  "archetype": "5 (Jewel & Luxury)",
+  "concept": "Calm, clean, and authoritative financial news platform with a deep obsidian base and muted gold accents. The design prioritizes readability, data clarity, and a premium 'Old Money Tech' aesthetic over flashy, neon web3 styles.",
+  "colors": {
+    "background": {
+      "base": "#0A0D14",
+      "surface": "#121620",
+      "surface_hover": "#1C2230"
+    },
+    "text": {
+      "primary": "#F3F4F6",
+      "secondary": "#9CA3AF",
+      "muted": "#6B7280"
+    },
+    "border": {
+      "default": "#232B3E",
+      "subtle": "#1A202E"
+    },
+    "brand": {
+      "gold": "#D4AF37",
+      "gold_hover": "#C39F2F",
+      "gold_muted": "#D4AF3720"
+    },
+    "semantic": {
+      "positive": "#10B981",
+      "positive_bg": "rgba(16, 185, 129, 0.1)",
+      "negative": "#EF4444",
+      "negative_bg": "rgba(239, 68, 68, 0.1)",
+      "info": "#3B82F6",
+      "warning": "#F59E0B"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Cabinet Grotesk",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "sizes": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg sm:text-xl",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "tiny_label": "text-xs uppercase tracking-[0.2em]"
+    },
+    "setup_commands": [
+      "Wait for main agent to implement Google Fonts import for Cabinet Grotesk, Manrope, and JetBrains Mono"
+    ]
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous spacing (p-8, p-12) for large sections to feel premium. Dense, crisp spacing for numerical data and tickers.",
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "grid_patterns": {
+      "hero_news": "Bento grid (TETRIS style). 1 dominant hero card spanning 2 columns/rows, 2 smaller supporting cards. Base grid-cols-1 md:grid-cols-3 gap-6.",
+      "article_feed": "Grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8.",
+      "dashboard": "Control Room grid. Dense grids (gap-4 or gap-6), strict borders, cardless sharp edges."
+    },
+    "borders": "1px solid #232B3E for cards. Very subtle, avoiding heavy drop shadows. Focus on crisp 'Neumorphism tactile' or 'Grid Borders' tech look."
+  },
+  "surfaces_and_effects": {
+    "header": "Crystal Glassmorphism. bg-[#0A0D14]/70 backdrop-blur-xl border-b border-[#232B3E]. Must be sticky (z-50).",
+    "ticker": "Solid background bg-[#121620] border-b border-[#232B3E] py-2 text-sm. Use 'react-fast-marquee' for smooth, slow, continuous scrolling.",
+    "cards": "Flat solid background bg-[#121620] border border-[#232B3E] rounded-lg. On hover: border-[#D4AF37]/50 and slight -translate-y-1 transition.",
+    "images": "Hero images must have a gradient overlay (bg-gradient-to-t from-[#0A0D14] via-[#0A0D14]/50 to-transparent) to ensure text contrast."
+  },
+  "components_strategy": {
+    "public_site": "Pure HTML/Tailwind for marketing/news layout. Create raw divs to ensure custom layouts and overlap.",
+    "admin_cms": "Shadcn UI (Tables, Dialogs, Select, Forms, Tabs) but heavily customized to match the dark theme and gold accents.",
+    "forms": "Shadcn UI Form, Input, Select for Contact and Search.",
+    "buttons": "Primary: bg-[#D4AF37] text-black hover:bg-[#C39F2F]. Secondary: border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10.",
+    "icons": "lucide-react for standard icons, optionally @phosphor-icons/react for more premium duotone look."
+  },
+  "required_packages": [
+    "lucide-react",
+    "react-fast-marquee",
+    "framer-motion",
+    "clsx",
+    "tailwind-merge"
+  ],
+  "accessibility": {
+    "contrast": "Ensure text over images uses text-shadow or gradient scrims. APCA compliant. Gold accent must be used specifically on dark backgrounds for minimum 4.5:1 ratio.",
+    "interactive": "All buttons/links must have hover and focus rings (focus:ring-2 focus:ring-[#D4AF37] focus:outline-none).",
+    "testing": "All interactive elements must include data-testid attributes."
+  },
+  "media": {
+    "hero_finance_bg": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/f712192f1e093a330071590147681b698bb15be3b4c11acf87b28c9958efedf3.png",
+      "description": "Abstract dark and calm financial market background with subtle gold glow",
+      "category": "hero_background"
+    },
+    "crypto_blocks_gold": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/a93bc06ad761fa1cee1bcc03f9f82eb5ffb38dddbd06acdd028acf9e70b95a52.png",
+      "description": "Abstract representation of blockchain data blocks with gold lines",
+      "category": "education_hero"
+    },
+    "bitcoin_gold_dark": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/49f82beb8b9fd6e716ec4539493ca67d272193ac046693ecbaf6ba88c533d0a8.png",
+      "description": "Golden bitcoin coin on dark obsidian surface",
+      "category": "article_thumbnail"
+    },
+    "stock_chart_phone": {
+      "url": "https://images.unsplash.com/photo-1643962579399-705ba9e9cc0b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxiaXRjb2luJTIwc3RvY2slMjBtYXJrZXQlMjBkYXJrfGVufDB8fHx8MTc3NTA1ODUwNXww&ixlib=rb-4.1.0&q=85",
+      "description": "Close up of cell phone with stock chart",
+      "category": "article_thumbnail"
+    },
+    "digital_trading_chart": {
+      "url": "https://images.pexels.com/photos/10628030/pexels-photo-10628030.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Fluctuating cryptocurrency market chart",
+      "category": "article_thumbnail"
+    },
+    "bitcoin_logo_dark": {
+      "url": "https://images.unsplash.com/photo-1732111816779-aeec50f788ba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHw0fHxiaXRjb2luJTIwc3RvY2slMjBtYXJrZXQlMjBkYXJrfGVufDB8fHx8MTc3NTA1ODUwNXww&ixlib=rb-4.1.0&q=85",
+      "description": "Shiny bitcoin logo on black background",
+      "category": "article_thumbnail"
+    }
+  }
+}
