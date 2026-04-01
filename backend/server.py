@@ -296,7 +296,7 @@ async def get_article_by_slug(slug: str):
     result["og_description"] = result.get("meta_description") or result.get("excerpt", "")
     # Get author info
     if result.get("author_id"):
-        author = await db.users.find_one({"_id": ObjectId(result["author_id"])}, {"password_hash": 0, "_id": 1, "name": 1, "bio": 1, "avatar_url": 1, "social_twitter": 1})
+        author = await db.users.find_one({"_id": ObjectId(result["author_id"])}, {"password_hash": 0})
         if author:
             result["author"] = serialize_doc(author)
     # Get related articles

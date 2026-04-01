@@ -26,7 +26,7 @@ export default function ArticlePage() {
         const { data } = await axios.get(`${API}/articles/by-slug/${slug}`);
         setArticle(data);
       } catch (e) {
-        if (e.response?.status === 404) setNotFound(true);
+        setNotFound(true);
       } finally { setLoading(false); }
     };
     fetchArticle();
@@ -72,14 +72,14 @@ export default function ArticlePage() {
   if (!article) return null;
 
   const shareUrl = window.location.href;
-  const ogImage = article.og_image || article.featured_image;
-  const ogTitle = article.og_title || article.title;
-  const ogDescription = article.og_description || article.excerpt;
+  const ogImage = article.og_image || article.featured_image || '';
+  const ogTitle = article.og_title || article.title || '';
+  const ogDescription = article.og_description || article.excerpt || '';
 
   return (
     <div data-testid="article-page">
       <Helmet>
-        <title>{ogTitle} | FinNews</title>
+        <title>{`${ogTitle} | FinNews`}</title>
         <meta name="description" content={ogDescription} />
         <meta property="og:title" content={ogTitle} />
         <meta property="og:description" content={ogDescription} />
