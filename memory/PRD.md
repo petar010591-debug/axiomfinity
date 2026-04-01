@@ -23,11 +23,12 @@ Build a full-stack financial news website based on a detailed blueprint (Financi
 - Editorial workflow (draft/published/archived)
 - Responsive design
 
-## What's Been Implemented (V1 - Feb 2026)
+## What's Been Implemented (V1+V2 - Feb 2026)
 ### Public Site
-- Homepage with hero bento grid (1 primary + 2 secondary cards)
-- Live market ticker strip (CoinGecko + fallback data)
-- Latest News feed with category filtering & pagination
+- Homepage with sectioned layout: Latest News (hero bento) → Crypto → Press Releases → Sponsored → More Stories + Sidebar
+- Live market ticker strip with CoinGecko API (2-min cache, fallback data)
+- Latest News feed with category filtering (7 categories) & pagination
+- Multi-category articles (primary + secondary categories)
 - Article page with content, related articles, tags, sharing
 - Education hub with educational content cards
 - About page with company values
@@ -35,20 +36,22 @@ Build a full-stack financial news website based on a detailed blueprint (Financi
 - Legal pages (Privacy, Terms, Disclaimer)
 - Search with full-text across articles
 - Category navigation & filtering
+- Categories: Crypto, Markets, DeFi, Analysis, Educational, Sponsored, Press Releases
 
 ### Admin CMS
 - JWT login (petar010591@gmail.com)
 - Dashboard with stats overview
-- Article CRUD (create/edit/delete with status management)
+- Article CRUD with multi-category support (primary + secondary categories)
 - Categories & Tags management
 - Homepage curation (hero slot selection)
 - SEO fields per article
 
 ### Backend
-- 8 sample articles seeded across 5 categories
+- 10 sample articles seeded across 7 categories with multi-category support
 - 8 tags, 6 pages (educational + legal + about)
-- Full CRUD API for all entities
-- Market ticker endpoint with CoinGecko fallback
+- Full CRUD API with multi-category filtering
+- Homepage sections endpoint for grouped content
+- Market ticker with 2-min caching (CoinGecko + fallback)
 
 ## Prioritized Backlog
 
