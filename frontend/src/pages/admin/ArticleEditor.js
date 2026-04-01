@@ -12,7 +12,7 @@ export default function ArticleEditor() {
   const isEditing = !!id;
 
   const [form, setForm] = useState({
-    title: '', excerpt: '', content: '', featured_image: '', category_id: '', tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: ''
+    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: ''
   });
   const [categories, setCategories] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -39,6 +39,7 @@ export default function ArticleEditor() {
             content: data.content || '',
             featured_image: data.featured_image || '',
             category_id: data.category_id || '',
+            secondary_categories: data.categories?.filter(c => c !== data.category_slug) || [],
             tags: data.tags || [],
             status: data.status || 'draft',
             is_sponsored: data.is_sponsored || false,
@@ -150,7 +151,7 @@ export default function ArticleEditor() {
         {/* Category + Status row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Category</label>
+            <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Primary Category</label>
             <select
               value={form.category_id} onChange={e => updateField('category_id', e.target.value)}
               className="w-full px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
@@ -171,6 +172,30 @@ export default function ArticleEditor() {
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
+          </div>
+        </div>
+
+        {/* Secondary Categories */}
+        <div>
+          <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Additional Categories</label>
+          <p className="text-xs text-[#6B7280] mb-2">Select extra categories this article should appear in (e.g., Sponsored, Educational)</p>
+          <div className="flex flex-wrap gap-2">
+            {categories.map(c => {
+              const isSelected = form.secondary_categories.includes(c.slug);
+              return (
+                <button
+                  key={c.id} type="button"
+                  onClick={() => {
+                    if (isSelected) updateField('secondary_categories', form.secondary_categories.filter(s => s !== c.slug));
+                    else updateField('secondary_categories', [...form.secondary_categories, c.slug]);
+                  }}
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${isSelected ? 'bg-[#D4AF37] text-black' : 'bg-[#1C2230] text-[#9CA3AF] border border-[#232B3E] hover:border-[#D4AF37]'}`}
+                  data-testid={`secondary-cat-${c.slug}`}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 

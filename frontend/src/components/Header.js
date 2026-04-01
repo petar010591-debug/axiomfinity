@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Menu, X, ChevronDown, LogIn } from 'lucide-react';
+import { Search, Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const NAV_LINKS = [
@@ -12,7 +12,9 @@ const NAV_LINKS = [
       { label: 'Markets', href: '/category/markets' },
       { label: 'DeFi', href: '/category/defi' },
       { label: 'Analysis', href: '/category/analysis' },
-      { label: 'Regulation', href: '/category/regulation' },
+      { label: 'Educational', href: '/category/educational' },
+      { label: 'Sponsored', href: '/category/sponsored' },
+      { label: 'Press Releases', href: '/category/press-releases' },
     ]
   },
   { label: 'Education', href: '/education' },
@@ -142,22 +144,13 @@ export default function Header() {
               )}
             </AnimatePresence>
 
-            {user ? (
+            {user && (
               <Link
                 to="/admin"
                 className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium bg-[#D4AF37] text-black rounded-lg hover:bg-[#C39F2F] transition-colors"
                 data-testid="admin-panel-btn"
               >
                 Dashboard
-              </Link>
-            ) : (
-              <Link
-                to="/admin/login"
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium border border-[#232B3E] text-[#9CA3AF] rounded-lg hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors"
-                data-testid="login-btn"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                Login
               </Link>
             )}
 
@@ -208,11 +201,6 @@ export default function Header() {
                   className="w-full px-3 py-2 text-sm bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] placeholder-[#6B7280] focus:outline-none focus:border-[#D4AF37]"
                 />
               </form>
-              {!user && (
-                <Link to="/admin/login" className="block px-3 py-2 text-sm text-[#D4AF37]">
-                  Login
-                </Link>
-              )}
             </div>
           </motion.div>
         )}

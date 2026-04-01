@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from slugify import slugify
+import time
 
 # Config
 JWT_ALGORITHM = "HS256"
@@ -101,6 +102,7 @@ class ArticleCreate(BaseModel):
     content: str = ""
     featured_image: Optional[str] = ""
     category_id: Optional[str] = ""
+    secondary_categories: List[str] = []
     tags: List[str] = []
     status: str = "draft"
     is_sponsored: bool = False
@@ -167,12 +169,12 @@ async def get_articles(
     if status:
         query["status"] = status
     if category:
-        query["category_slug"] = category
+        query["categories"] = category
     if tag:
         query["tags"] = tag
     skip = (page - 1) * limit
     total = await db.articles.count_documents(query)
-    articles = await db.articles.find(query, {"_id": 1, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1, "category_name": 1, "category_slug": 1, "author_name": 1, "tags": 1, "status": 1, "is_sponsored": 1, "published_at": 1, "created_at": 1}).sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
+    articles = await db.articles.find(query, {"_id": 1, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1, "category_name": 1, "category_slug": 1, "categories": 1, "author_name": 1, "tags": 1, "status": 1, "is_sponsored": 1, "published_at": 1, "created_at": 1}).sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
     return {"articles": serialize_list(articles), "total": total, "page": page, "pages": (total + limit - 1) // limit}
 
 @api_router.get("/articles/featured")
@@ -276,19 +278,26 @@ async def submit_contact(msg: ContactMessage):
     await db.contact_messages.insert_one(doc)
     return {"message": "Thank you for your message. We'll get back to you soon."}
 
-# ─── MARKET TICKER ───
+# ─── MARKET TICKER (with caching) ───
+_ticker_cache = {"data": None, "timestamp": 0}
+TICKER_CACHE_TTL = 120  # Cache for 2 minutes
+
+FALLBACK_TICKERS = [
+    {"symbol": "BTC", "price": 97542.00, "change_24h": 2.34},
+    {"symbol": "ETH", "price": 3845.00, "change_24h": 1.87},
+    {"symbol": "SOL", "price": 178.50, "change_24h": -0.45},
+    {"symbol": "DOGE", "price": 0.1823, "change_24h": 3.12},
+    {"symbol": "ADA", "price": 0.6542, "change_24h": -1.23},
+    {"symbol": "XRP", "price": 2.15, "change_24h": 0.98},
+    {"symbol": "DOT", "price": 7.85, "change_24h": -0.67},
+    {"symbol": "AVAX", "price": 35.20, "change_24h": 1.45},
+]
+
 @api_router.get("/market/ticker")
 async def market_ticker():
-    FALLBACK_TICKERS = [
-        {"symbol": "BTC", "price": 97542.00, "change_24h": 2.34},
-        {"symbol": "ETH", "price": 3845.00, "change_24h": 1.87},
-        {"symbol": "SOL", "price": 178.50, "change_24h": -0.45},
-        {"symbol": "DOGE", "price": 0.1823, "change_24h": 3.12},
-        {"symbol": "ADA", "price": 0.6542, "change_24h": -1.23},
-        {"symbol": "XRP", "price": 2.15, "change_24h": 0.98},
-        {"symbol": "DOT", "price": 7.85, "change_24h": -0.67},
-        {"symbol": "AVAX", "price": 35.20, "change_24h": 1.45},
-    ]
+    now = time.time()
+    if _ticker_cache["data"] and (now - _ticker_cache["timestamp"]) < TICKER_CACHE_TTL:
+        return _ticker_cache["data"]
     try:
         async with httpx.AsyncClient(timeout=10) as hclient:
             resp = await hclient.get("https://api.coingecko.com/api/v3/simple/price", params={
@@ -302,17 +311,54 @@ async def market_ticker():
                 names = {"bitcoin": "BTC", "ethereum": "ETH", "solana": "SOL", "dogecoin": "DOGE", "cardano": "ADA", "ripple": "XRP", "polkadot": "DOT", "avalanche-2": "AVAX"}
                 for cid, symbol in names.items():
                     if cid in data:
-                        tickers.append({
-                            "symbol": symbol,
-                            "price": data[cid].get("usd", 0),
-                            "change_24h": round(data[cid].get("usd_24h_change", 0), 2)
-                        })
+                        tickers.append({"symbol": symbol, "price": data[cid].get("usd", 0), "change_24h": round(data[cid].get("usd_24h_change", 0), 2)})
                 if tickers:
-                    return {"tickers": tickers, "updated_at": datetime.now(timezone.utc).isoformat()}
-            return {"tickers": FALLBACK_TICKERS, "updated_at": datetime.now(timezone.utc).isoformat(), "note": "Using cached data"}
+                    result = {"tickers": tickers, "updated_at": datetime.now(timezone.utc).isoformat()}
+                    _ticker_cache["data"] = result
+                    _ticker_cache["timestamp"] = now
+                    return result
+        result = {"tickers": FALLBACK_TICKERS, "updated_at": datetime.now(timezone.utc).isoformat(), "note": "cached"}
+        _ticker_cache["data"] = result
+        _ticker_cache["timestamp"] = now
+        return result
     except Exception as e:
         logger.error(f"Ticker fetch error: {e}")
-        return {"tickers": FALLBACK_TICKERS, "updated_at": datetime.now(timezone.utc).isoformat(), "note": "Using cached data"}
+        result = {"tickers": FALLBACK_TICKERS, "updated_at": datetime.now(timezone.utc).isoformat(), "note": "cached"}
+        _ticker_cache["data"] = result
+        _ticker_cache["timestamp"] = now
+        return result
+
+# ─── HOMEPAGE SECTIONS ───
+@api_router.get("/articles/homepage-sections")
+async def get_homepage_sections():
+    base_query = {"status": "published"}
+    # Latest (all articles, for hero)
+    latest = await db.articles.find(base_query).sort("published_at", -1).limit(5).to_list(5)
+    latest_ids = [a["_id"] for a in latest]
+    latest_serialized = serialize_list(latest)
+
+    # Category sections
+    sections = {}
+    for cat_slug in ["crypto", "press-releases", "sponsored"]:
+        cat_articles = await db.articles.find({**base_query, "categories": cat_slug, "_id": {"$nin": latest_ids[:1]}}).sort("published_at", -1).limit(4).to_list(4)
+        sections[cat_slug] = serialize_list(cat_articles)
+
+    # Others (Markets, DeFi, Analysis, Educational)
+    shown_ids = set()
+    for a in latest_serialized:
+        shown_ids.add(a["id"])
+    for cat_arts in sections.values():
+        for a in cat_arts:
+            shown_ids.add(a["id"])
+    other_articles = await db.articles.find({**base_query, "_id": {"$nin": [ObjectId(i) for i in shown_ids]}}).sort("published_at", -1).limit(6).to_list(6)
+
+    return {
+        "latest": latest_serialized,
+        "crypto": sections.get("crypto", []),
+        "press_releases": sections.get("press-releases", []),
+        "sponsored": sections.get("sponsored", []),
+        "others": serialize_list(other_articles),
+    }
 
 # ─── ADMIN ROUTES ───
 @api_router.get("/admin/articles")
@@ -349,6 +395,11 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         except Exception:
             pass
     now = datetime.now(timezone.utc).isoformat()
+    # Build categories array
+    all_categories = [cat_slug] if cat_slug else []
+    for sc_slug in data.secondary_categories:
+        if sc_slug and sc_slug not in all_categories:
+            all_categories.append(sc_slug)
     doc = {
         "title": data.title,
         "slug": slug,
@@ -358,6 +409,7 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         "category_id": data.category_id,
         "category_name": cat_name,
         "category_slug": cat_slug,
+        "categories": all_categories,
         "tags": data.tags,
         "author_id": user["id"],
         "author_name": user["name"],
@@ -390,6 +442,11 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         except Exception:
             pass
     now = datetime.now(timezone.utc).isoformat()
+    # Build categories array
+    all_categories = [cat_slug] if cat_slug else []
+    for sc_slug in data.secondary_categories:
+        if sc_slug and sc_slug not in all_categories:
+            all_categories.append(sc_slug)
     update = {
         "title": data.title,
         "excerpt": data.excerpt,
@@ -398,6 +455,7 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         "category_id": data.category_id,
         "category_name": cat_name,
         "category_slug": cat_slug,
+        "categories": all_categories,
         "tags": data.tags,
         "status": data.status,
         "is_sponsored": data.is_sponsored,
@@ -529,7 +587,9 @@ SAMPLE_CATEGORIES = [
     {"name": "Markets", "slug": "markets", "description": "Stock market and traditional finance"},
     {"name": "DeFi", "slug": "defi", "description": "Decentralized finance protocols and trends"},
     {"name": "Analysis", "slug": "analysis", "description": "Deep dives and technical analysis"},
-    {"name": "Regulation", "slug": "regulation", "description": "Government policy and regulatory updates"},
+    {"name": "Educational", "slug": "educational", "description": "Learn about blockchain and finance"},
+    {"name": "Sponsored", "slug": "sponsored", "description": "Sponsored content from our partners"},
+    {"name": "Press Releases", "slug": "press-releases", "description": "Official announcements and press releases"},
 ]
 
 SAMPLE_TAGS = [
@@ -548,10 +608,11 @@ SAMPLE_ARTICLES = [
         "title": "Bitcoin Surges Past $100K as Institutional Demand Hits New Highs",
         "slug": "bitcoin-surges-past-100k-institutional-demand",
         "excerpt": "Bitcoin has broken through the $100,000 barrier as major financial institutions increase their cryptocurrency holdings, signaling a new era of mainstream adoption.",
-        "content": "<h2>A Historic Milestone</h2><p>Bitcoin reached a historic milestone today, surging past the $100,000 mark for the first time as institutional investors continue to pour capital into the cryptocurrency market. The move represents a significant psychological breakthrough for the world's largest digital asset.</p><h2>Institutional Momentum</h2><p>Major banks and asset managers have been steadily increasing their Bitcoin allocations throughout 2026, driven by growing client demand and clearer regulatory frameworks. BlackRock's spot Bitcoin ETF has accumulated over $50 billion in assets under management, while several sovereign wealth funds have disclosed Bitcoin positions for the first time.</p><h2>Market Analysis</h2><p>Technical analysts point to strong support levels and increasing on-chain activity as indicators of sustained bullish momentum. The current rally differs from previous cycles in its foundation of institutional infrastructure and regulatory clarity.</p><p>\"This isn't just retail speculation anymore,\" said Sarah Chen, Chief Investment Officer at Digital Asset Capital. \"We're seeing pension funds, endowments, and family offices all making strategic allocations to Bitcoin.\"</p><h2>What's Next?</h2><p>While some analysts warn of potential short-term pullbacks, the consensus view remains bullish. The combination of limited supply, increasing demand, and supportive macroeconomic conditions suggests further upside potential.</p>",
+        "content": "<h2>A Historic Milestone</h2><p>Bitcoin reached a historic milestone today, surging past the $100,000 mark for the first time as institutional investors continue to pour capital into the cryptocurrency market. The move represents a significant psychological breakthrough for the world's largest digital asset.</p><h2>Institutional Momentum</h2><p>Major banks and asset managers have been steadily increasing their Bitcoin allocations throughout 2026, driven by growing client demand and clearer regulatory frameworks. BlackRock's spot Bitcoin ETF has accumulated over $50 billion in assets under management, while several sovereign wealth funds have disclosed Bitcoin positions for the first time.</p><h2>What's Next?</h2><p>While some analysts warn of potential short-term pullbacks, the consensus view remains bullish. The combination of limited supply, increasing demand, and supportive macroeconomic conditions suggests further upside potential.</p>",
         "featured_image": "https://images.unsplash.com/photo-1643962579399-705ba9e9cc0b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxiaXRjb2luJTIwc3RvY2slMjBtYXJrZXQlMjBkYXJrfGVufDB8fHx8MTc3NTA1ODUwNXww&ixlib=rb-4.1.0&q=85",
         "category_slug": "crypto",
         "category_name": "Crypto",
+        "categories": ["crypto"],
         "tags": ["Bitcoin", "Trading"],
         "is_sponsored": False,
     },
@@ -559,54 +620,59 @@ SAMPLE_ARTICLES = [
         "title": "Ethereum's Layer 2 Ecosystem Reaches $50B in Total Value Locked",
         "slug": "ethereum-layer-2-ecosystem-50b-tvl",
         "excerpt": "The combined total value locked across Ethereum Layer 2 networks has surpassed $50 billion, highlighting the growing scalability of the Ethereum ecosystem.",
-        "content": "<h2>Scaling Milestone</h2><p>Ethereum's Layer 2 ecosystem has achieved a remarkable milestone, with combined total value locked (TVL) surpassing $50 billion across various rollup networks. This represents a 300% increase from the beginning of the year.</p><h2>Leading Networks</h2><p>Arbitrum and Optimism continue to lead the pack, with Base gaining significant ground thanks to its integration with Coinbase's user base. ZK-rollups including zkSync and StarkNet are also seeing rapid adoption as their technology matures.</p><p>The growth in L2 activity has contributed to a significant reduction in mainnet gas fees, making Ethereum more accessible to everyday users while maintaining the security guarantees of the base layer.</p><h2>DeFi Renaissance</h2><p>The lower costs and faster transactions on L2 networks have sparked a renaissance in DeFi applications, with new protocols launching daily across lending, trading, and yield optimization categories.</p>",
+        "content": "<h2>Scaling Milestone</h2><p>Ethereum's Layer 2 ecosystem has achieved a remarkable milestone, with combined total value locked (TVL) surpassing $50 billion across various rollup networks. This represents a 300% increase from the beginning of the year.</p><h2>Leading Networks</h2><p>Arbitrum and Optimism continue to lead the pack, with Base gaining significant ground. ZK-rollups including zkSync and StarkNet are also seeing rapid adoption as their technology matures.</p><h2>DeFi Renaissance</h2><p>The lower costs and faster transactions on L2 networks have sparked a renaissance in DeFi applications, with new protocols launching daily across lending, trading, and yield optimization categories.</p>",
         "featured_image": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/a93bc06ad761fa1cee1bcc03f9f82eb5ffb38dddbd06acdd028acf9e70b95a52.png",
-        "category_slug": "defi",
-        "category_name": "DeFi",
+        "category_slug": "crypto",
+        "category_name": "Crypto",
+        "categories": ["crypto", "defi"],
         "tags": ["Ethereum", "Blockchain"],
         "is_sponsored": False,
     },
     {
-        "title": "SEC Approves Comprehensive Crypto Regulatory Framework",
-        "slug": "sec-approves-comprehensive-crypto-framework",
-        "excerpt": "The SEC has voted to approve a comprehensive regulatory framework for digital assets, providing long-awaited clarity for the cryptocurrency industry.",
-        "content": "<h2>Regulatory Clarity at Last</h2><p>In a landmark decision, the U.S. Securities and Exchange Commission has approved a comprehensive regulatory framework for digital assets. The new rules provide clear guidelines for token classification, exchange operations, and investor protections.</p><h2>Key Provisions</h2><p>The framework establishes a clear taxonomy for digital assets, distinguishing between securities, commodities, and utility tokens. Exchanges will be required to register under a new licensing regime that addresses the unique characteristics of crypto markets.</p><p>\"This framework strikes the right balance between protecting investors and fostering innovation,\" said SEC Chair in the official announcement. \"It provides the certainty that the industry has been seeking.\"</p><h2>Industry Reaction</h2><p>The crypto industry has largely welcomed the new rules, with major exchanges and projects expressing support for the clarity they provide. Several international jurisdictions have indicated interest in adopting similar frameworks.</p>",
-        "featured_image": "https://images.pexels.com/photos/10628030/pexels-photo-10628030.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "category_slug": "regulation",
-        "category_name": "Regulation",
-        "tags": ["Bitcoin", "Ethereum", "Altcoins"],
-        "is_sponsored": False,
+        "title": "Trezor Launches Next-Gen Hardware Wallet with Biometric Security",
+        "slug": "trezor-next-gen-hardware-wallet-biometric",
+        "excerpt": "Trezor unveils its latest hardware wallet featuring fingerprint authentication and enhanced security features. Our detailed review inside.",
+        "content": "<h2>Next Generation Security</h2><p>Trezor has announced the launch of its next-generation hardware wallet, featuring breakthrough biometric authentication technology. The new device represents a significant leap forward in cryptocurrency security for retail investors.</p><h2>Key Features</h2><p>The new wallet includes fingerprint scanning, a larger touchscreen display, support for over 1,000 cryptocurrencies, and an improved backup system. The device is priced at $199 and available for pre-order.</p><p><strong>Disclosure:</strong> This article is sponsored by Trezor. All opinions remain those of our editorial team.</p>",
+        "featured_image": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/49f82beb8b9fd6e716ec4539493ca67d272193ac046693ecbaf6ba88c533d0a8.png",
+        "category_slug": "crypto",
+        "category_name": "Crypto",
+        "categories": ["crypto", "sponsored"],
+        "tags": ["Bitcoin", "Blockchain"],
+        "is_sponsored": True,
     },
     {
         "title": "Solana DeFi Sees Record Volume as New Protocols Launch",
         "slug": "solana-defi-record-volume-new-protocols",
         "excerpt": "Solana's DeFi ecosystem is experiencing unprecedented growth with record trading volumes and a wave of innovative new protocols.",
-        "content": "<h2>Explosive Growth</h2><p>Solana's decentralized finance ecosystem has recorded its highest-ever daily trading volume, driven by a surge in activity across multiple protocols. The network processed over 50 million transactions in a single day without significant performance degradation.</p><h2>New Protocol Launches</h2><p>Several high-profile DeFi protocols have launched on Solana in recent weeks, including advanced perpetual trading platforms, cross-chain bridges, and novel yield farming strategies. The combination of low fees and high throughput continues to attract builders.</p><p>Market makers and institutional trading firms have increasingly deployed strategies on Solana, citing its performance characteristics and growing liquidity.</p><h2>Technical Improvements</h2><p>Recent network upgrades have significantly improved Solana's reliability, addressing concerns that previously limited institutional adoption. The Firedancer validator client has contributed to network stability and throughput improvements.</p>",
-        "featured_image": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/49f82beb8b9fd6e716ec4539493ca67d272193ac046693ecbaf6ba88c533d0a8.png",
+        "content": "<h2>Explosive Growth</h2><p>Solana's decentralized finance ecosystem has recorded its highest-ever daily trading volume, driven by a surge in activity across multiple protocols. The network processed over 50 million transactions in a single day.</p><h2>New Protocol Launches</h2><p>Several high-profile DeFi protocols have launched on Solana in recent weeks, including advanced perpetual trading platforms, cross-chain bridges, and novel yield farming strategies.</p><h2>Technical Improvements</h2><p>Recent network upgrades have significantly improved Solana's reliability. The Firedancer validator client has contributed to network stability and throughput improvements.</p>",
+        "featured_image": "https://images.pexels.com/photos/10628030/pexels-photo-10628030.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
         "category_slug": "defi",
         "category_name": "DeFi",
+        "categories": ["defi", "crypto"],
         "tags": ["Altcoins", "Trading"],
         "is_sponsored": False,
     },
     {
-        "title": "Central Banks Accelerate Digital Currency Development in 2026",
-        "slug": "central-banks-accelerate-digital-currency-2026",
-        "excerpt": "More than 130 countries are now actively developing central bank digital currencies, with several major economies preparing for pilot launches.",
-        "content": "<h2>Global CBDC Race</h2><p>The race to develop central bank digital currencies (CBDCs) has accelerated dramatically in 2026, with over 130 countries in various stages of research, development, or pilot testing. The European Central Bank, Bank of England, and Federal Reserve have all announced advanced pilot programs.</p><h2>Privacy Considerations</h2><p>Privacy remains the most debated aspect of CBDC design. Several central banks have adopted hybrid models that provide transaction privacy for small amounts while maintaining regulatory visibility for larger transfers.</p><p>\"The key challenge is designing a system that serves both the public interest and individual privacy rights,\" noted Dr. Maria Torres, a CBDC researcher at the Bank for International Settlements.</p><h2>Impact on Crypto</h2><p>The relationship between CBDCs and existing cryptocurrencies continues to evolve. Some analysts argue that CBDCs will legitimize the broader digital asset ecosystem, while others warn of potential competitive pressures on stablecoins.</p>",
+        "title": "BlockFi Partners with Major Bank for Crypto Lending Services",
+        "slug": "blockfi-partners-major-bank-crypto-lending",
+        "excerpt": "BlockFi announces a groundbreaking partnership with a top-tier banking institution to offer regulated crypto lending services to institutional clients.",
+        "content": "<h2>Strategic Partnership</h2><p>BlockFi has entered into a strategic partnership with one of the world's largest banking institutions to provide regulated cryptocurrency lending services. This partnership marks a significant milestone in the integration of traditional finance and digital assets.</p><h2>Services Offered</h2><p>The new service will allow institutional clients to access Bitcoin-collateralized loans, yield products on digital assets, and custody solutions. All services will be fully compliant with existing financial regulations.</p><p>This is a press release from BlockFi.</p>",
         "featured_image": "https://images.unsplash.com/photo-1732111816779-aeec50f788ba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHw0fHxiaXRjb2luJTIwc3RvY2slMjBtYXJrZXQlMjBkYXJrfGVufDB8fHx8MTc3NTA1ODUwNXww&ixlib=rb-4.1.0&q=85",
-        "category_slug": "regulation",
-        "category_name": "Regulation",
-        "tags": ["Blockchain", "Stablecoins"],
+        "category_slug": "press-releases",
+        "category_name": "Press Releases",
+        "categories": ["press-releases", "crypto"],
+        "tags": ["Bitcoin", "Blockchain"],
         "is_sponsored": False,
     },
     {
         "title": "Technical Analysis: Key Support Levels to Watch This Week",
         "slug": "technical-analysis-key-support-levels-week",
         "excerpt": "Our weekly technical analysis covers critical support and resistance levels for Bitcoin, Ethereum, and top altcoins heading into a pivotal trading week.",
-        "content": "<h2>Weekly Market Overview</h2><p>The crypto market enters a pivotal week with several key technical levels in focus. After a period of consolidation, multiple assets are approaching critical support and resistance zones that could determine the next major directional move.</p><h2>Bitcoin (BTC)</h2><p>Bitcoin continues to trade within a narrowing range between $98,000 and $103,000. The 50-day moving average at $96,500 represents strong support, while a break above $103,000 could trigger a move toward $110,000. Volume has been declining during consolidation, suggesting a significant move is imminent.</p><h2>Ethereum (ETH)</h2><p>Ethereum has shown relative strength, maintaining its position above the key $4,200 support level. The ETH/BTC ratio has been trending upward, suggesting potential outperformance in the near term. Watch the $4,500 resistance for a potential breakout signal.</p><h2>Altcoin Outlook</h2><p>Several altcoins are forming bullish technical patterns. Solana, Avalanche, and Polkadot all show constructive chart structures with potential for significant upside if Bitcoin maintains its current range.</p>",
+        "content": "<h2>Weekly Market Overview</h2><p>The crypto market enters a pivotal week with several key technical levels in focus. After a period of consolidation, multiple assets are approaching critical support and resistance zones.</p><h2>Bitcoin (BTC)</h2><p>Bitcoin continues to trade within a narrowing range between $98,000 and $103,000. The 50-day moving average at $96,500 represents strong support.</p><h2>Ethereum (ETH)</h2><p>Ethereum has shown relative strength, maintaining its position above the key $4,200 support level. Watch the $4,500 resistance for a potential breakout signal.</p>",
         "featured_image": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/f712192f1e093a330071590147681b698bb15be3b4c11acf87b28c9958efedf3.png",
         "category_slug": "analysis",
         "category_name": "Analysis",
+        "categories": ["analysis", "crypto"],
         "tags": ["Bitcoin", "Ethereum", "Trading"],
         "is_sponsored": False,
     },
@@ -614,10 +680,11 @@ SAMPLE_ARTICLES = [
         "title": "Understanding DeFi Yield Farming: A Beginner's Guide",
         "slug": "understanding-defi-yield-farming-beginners-guide",
         "excerpt": "Learn the fundamentals of DeFi yield farming, including how it works, the risks involved, and strategies for getting started safely.",
-        "content": "<h2>What is Yield Farming?</h2><p>Yield farming is a method of earning rewards by providing liquidity to decentralized finance protocols. By depositing your crypto assets into liquidity pools, you earn fees and token rewards from the protocol.</p><h2>How Does It Work?</h2><p>When you provide liquidity to a DeFi protocol, you're essentially lending your assets to be used by other traders. In return, you receive a share of the trading fees and often additional token incentives. The annual percentage yield (APY) can vary significantly depending on the protocol and the assets involved.</p><h2>Key Risks</h2><p><strong>Impermanent Loss:</strong> When the price ratio of your deposited assets changes, you may end up with less value than if you had simply held the assets. This is the most common risk in yield farming.</p><p><strong>Smart Contract Risk:</strong> DeFi protocols are built on smart contracts that may contain bugs or vulnerabilities. Always use well-audited protocols.</p><p><strong>Regulatory Risk:</strong> The regulatory landscape for DeFi is still evolving, which could impact the availability of certain protocols.</p><h2>Getting Started Safely</h2><p>Start with well-established protocols like Aave, Compound, or Uniswap. Begin with small amounts to understand the mechanics before committing larger sums. Always research the protocol's audit history and team background.</p>",
+        "content": "<h2>What is Yield Farming?</h2><p>Yield farming is a method of earning rewards by providing liquidity to decentralized finance protocols. By depositing your crypto assets into liquidity pools, you earn fees and token rewards.</p><h2>Key Risks</h2><p><strong>Impermanent Loss:</strong> When the price ratio of your deposited assets changes, you may end up with less value.</p><p><strong>Smart Contract Risk:</strong> DeFi protocols built on smart contracts may contain vulnerabilities.</p><h2>Getting Started Safely</h2><p>Start with well-established protocols like Aave, Compound, or Uniswap. Begin with small amounts to understand the mechanics.</p>",
         "featured_image": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/a93bc06ad761fa1cee1bcc03f9f82eb5ffb38dddbd06acdd028acf9e70b95a52.png",
-        "category_slug": "defi",
-        "category_name": "DeFi",
+        "category_slug": "educational",
+        "category_name": "Educational",
+        "categories": ["educational", "defi"],
         "tags": ["Blockchain", "Web3"],
         "is_sponsored": False,
     },
@@ -625,11 +692,36 @@ SAMPLE_ARTICLES = [
         "title": "Global Stock Markets Rally on Positive Economic Data",
         "slug": "global-stock-markets-rally-positive-economic-data",
         "excerpt": "Major stock indices around the world posted gains as economic data exceeded expectations, boosting investor confidence across all asset classes.",
-        "content": "<h2>Markets Surge</h2><p>Global stock markets rallied broadly today following the release of stronger-than-expected economic data from the United States, Europe, and Asia. The S&P 500 rose 2.1%, while the Nasdaq Composite gained 2.8%.</p><h2>Economic Indicators</h2><p>U.S. jobs data came in well above consensus, with 350,000 new positions added in January. Manufacturing PMI data from Europe also surprised to the upside, suggesting that recession fears may have been overdone.</p><p>The positive economic backdrop has supported risk assets broadly, with both traditional equities and cryptocurrencies benefiting from improved sentiment.</p><h2>Crypto Correlation</h2><p>Bitcoin and Ethereum both posted gains in sympathy with traditional markets, highlighting the increasing correlation between digital assets and broader financial markets during risk-on periods.</p>",
+        "content": "<h2>Markets Surge</h2><p>Global stock markets rallied broadly today following the release of stronger-than-expected economic data from the United States, Europe, and Asia. The S&P 500 rose 2.1%, while the Nasdaq Composite gained 2.8%.</p><h2>Crypto Correlation</h2><p>Bitcoin and Ethereum both posted gains in sympathy with traditional markets, highlighting the increasing correlation between digital assets and broader financial markets.</p>",
         "featured_image": "https://images.pexels.com/photos/10628030/pexels-photo-10628030.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
         "category_slug": "markets",
         "category_name": "Markets",
+        "categories": ["markets"],
         "tags": ["Trading", "Bitcoin"],
+        "is_sponsored": False,
+    },
+    {
+        "title": "CoinSwap Exchange Launches Zero-Fee Trading for Premium Members",
+        "slug": "coinswap-exchange-zero-fee-trading-premium",
+        "excerpt": "CoinSwap Exchange introduces zero-fee trading for its premium tier members, challenging industry giants with competitive pricing.",
+        "content": "<h2>Zero-Fee Trading</h2><p>CoinSwap Exchange has announced the launch of its zero-fee trading program for premium members. The move is expected to attract high-volume traders looking to minimize transaction costs.</p><h2>Premium Features</h2><p>Premium members will also gain access to advanced trading tools, priority customer support, and early access to new token listings. The premium tier is priced at $29.99 per month.</p><p><strong>Disclosure:</strong> This article is sponsored by CoinSwap Exchange.</p>",
+        "featured_image": "https://static.prod-images.emergentagent.com/jobs/0356c6e3-d9fe-4e34-b671-3b8a5d7d214f/images/49f82beb8b9fd6e716ec4539493ca67d272193ac046693ecbaf6ba88c533d0a8.png",
+        "category_slug": "sponsored",
+        "category_name": "Sponsored",
+        "categories": ["sponsored", "crypto"],
+        "tags": ["Trading", "Altcoins"],
+        "is_sponsored": True,
+    },
+    {
+        "title": "Chainlink Announces Cross-Chain Protocol Upgrade",
+        "slug": "chainlink-announces-cross-chain-protocol-upgrade",
+        "excerpt": "Chainlink releases official statement on its upcoming cross-chain interoperability protocol, promising seamless multi-chain data feeds.",
+        "content": "<h2>CCIP Upgrade</h2><p>Chainlink has officially announced a major upgrade to its Cross-Chain Interoperability Protocol (CCIP). The upgrade will enable seamless data transfer and token bridging across 15+ blockchain networks.</p><h2>Key Improvements</h2><p>The upgraded protocol features faster finality, reduced gas costs, and enhanced security through Chainlink's decentralized oracle network. Several major DeFi protocols have already committed to integrating the new version.</p>",
+        "featured_image": "https://images.unsplash.com/photo-1643962579399-705ba9e9cc0b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxiaXRjb2luJTIwc3RvY2slMjBtYXJrZXQlMjBkYXJrfGVufDB8fHx8MTc3NTA1ODUwNXww&ixlib=rb-4.1.0&q=85",
+        "category_slug": "press-releases",
+        "category_name": "Press Releases",
+        "categories": ["press-releases", "defi"],
+        "tags": ["Blockchain", "Altcoins"],
         "is_sponsored": False,
     },
 ]
@@ -722,6 +814,8 @@ async def seed_data():
             article["updated_at"] = pub_time
             article["meta_title"] = article["title"]
             article["meta_description"] = article["excerpt"]
+            if "categories" not in article:
+                article["categories"] = [article["category_slug"]] if article.get("category_slug") else []
             await db.articles.insert_one(article)
         logger.info("Articles seeded")
 

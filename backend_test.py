@@ -89,20 +89,44 @@ class FinancialNewsAPITester:
         return success
 
     def test_market_ticker(self):
-        """Test market ticker API"""
-        self.log("=== TESTING MARKET TICKER ===")
+        """Test market ticker API with caching"""
+        self.log("=== TESTING MARKET TICKER (with 2-min cache) ===")
+        
+        # First call
+        import time
+        start_time = time.time()
         success, response = self.run_test(
-            "Market Ticker",
+            "Market Ticker (First Call)",
             "GET",
             "market/ticker",
             200
         )
+        first_call_time = time.time() - start_time
+        
         if success:
             tickers = response.get('tickers', [])
-            self.log(f"✅ Market ticker returned {len(tickers)} tickers")
+            self.log(f"✅ Market ticker returned {len(tickers)} tickers (took {first_call_time:.2f}s)")
             if tickers:
                 self.log(f"Sample ticker: {tickers[0].get('symbol', 'N/A')} - ${tickers[0].get('price', 'N/A')}")
-        return success
+        
+        # Second call (should be faster due to cache)
+        start_time = time.time()
+        success2, response2 = self.run_test(
+            "Market Ticker (Second Call - Cached)",
+            "GET",
+            "market/ticker",
+            200
+        )
+        second_call_time = time.time() - start_time
+        
+        if success2:
+            self.log(f"✅ Cached call took {second_call_time:.2f}s (should be faster than {first_call_time:.2f}s)")
+            if second_call_time < first_call_time:
+                self.log("✅ Cache is working - second call was faster")
+            else:
+                self.log("⚠️  Cache may not be working - second call was not faster")
+        
+        return success and success2
 
     def test_categories_api(self):
         """Test categories API"""
@@ -118,6 +142,11 @@ class FinancialNewsAPITester:
             self.log(f"✅ Categories API returned {len(categories)} categories")
             if categories:
                 self.log(f"Sample category: {categories[0].get('name', 'N/A')}")
+                # Check for expected 7 categories
+                expected_categories = ["Crypto", "Markets", "DeFi", "Analysis", "Educational", "Sponsored", "Press Releases"]
+                category_names = [cat.get('name', '') for cat in categories]
+                found_expected = [name for name in expected_categories if name in category_names]
+                self.log(f"✅ Found {len(found_expected)}/7 expected categories: {', '.join(found_expected)}")
         return success
 
     def test_articles_api(self):
@@ -147,7 +176,23 @@ class FinancialNewsAPITester:
             hero_secondary = response2.get('hero_secondary', [])
             self.log(f"✅ Featured articles: 1 primary, {len(hero_secondary)} secondary")
         
-        return success and success2
+        # Test NEW homepage sections endpoint
+        success3, response3 = self.run_test(
+            "Get Homepage Sections",
+            "GET",
+            "articles/homepage-sections",
+            200
+        )
+        if success3:
+            sections = response3
+            latest = sections.get('latest', [])
+            crypto = sections.get('crypto', [])
+            press_releases = sections.get('press_releases', [])
+            sponsored = sections.get('sponsored', [])
+            others = sections.get('others', [])
+            self.log(f"✅ Homepage sections: {len(latest)} latest, {len(crypto)} crypto, {len(press_releases)} press releases, {len(sponsored)} sponsored, {len(others)} others")
+        
+        return success and success2 and success3
 
     def test_article_search(self):
         """Test article search API"""
@@ -179,8 +224,8 @@ class FinancialNewsAPITester:
         return success
 
     def test_admin_articles_crud(self):
-        """Test admin articles CRUD operations"""
-        self.log("=== TESTING ADMIN ARTICLES CRUD ===")
+        """Test admin articles CRUD operations with multi-category support"""
+        self.log("=== TESTING ADMIN ARTICLES CRUD (with multi-category) ===")
         
         # List articles
         success1, response1 = self.run_test(
@@ -190,17 +235,35 @@ class FinancialNewsAPITester:
             200
         )
         
-        # Create article
+        # Get categories for testing multi-category
+        categories_success, categories_response = self.run_test(
+            "Get Categories for Multi-Category Test",
+            "GET",
+            "categories",
+            200
+        )
+        
+        category_id = None
+        secondary_categories = []
+        if categories_success and categories_response:
+            categories = categories_response if isinstance(categories_response, list) else []
+            if len(categories) >= 2:
+                category_id = categories[0].get('id')
+                secondary_categories = [categories[1].get('slug', '')]
+        
+        # Create article with multi-category support
         article_data = {
-            "title": "Test Article " + datetime.now().strftime("%H%M%S"),
-            "excerpt": "Test excerpt for automated testing",
-            "content": "<p>This is a test article created by automated testing.</p>",
+            "title": "Test Multi-Category Article " + datetime.now().strftime("%H%M%S"),
+            "excerpt": "Test excerpt for automated testing with multiple categories",
+            "content": "<p>This is a test article created by automated testing with multi-category support.</p>",
             "status": "draft",
-            "tags": ["test", "automation"]
+            "tags": ["test", "automation"],
+            "category_id": category_id,
+            "secondary_categories": secondary_categories
         }
         
         success2, response2 = self.run_test(
-            "Admin Create Article",
+            "Admin Create Article (Multi-Category)",
             "POST",
             "admin/articles",
             201,
@@ -210,30 +273,39 @@ class FinancialNewsAPITester:
         article_id = None
         if success2:
             article_id = response2.get('id')
+            categories_field = response2.get('categories', [])
             self.log(f"✅ Created article with ID: {article_id}")
+            self.log(f"✅ Article categories: {categories_field}")
         
-        # Get specific article
+        # Get specific article and verify multi-category
         success3 = True
         if article_id:
             success3, response3 = self.run_test(
-                "Admin Get Article",
+                "Admin Get Article (Verify Multi-Category)",
                 "GET",
                 f"admin/articles/{article_id}",
                 200
             )
+            if success3:
+                categories_field = response3.get('categories', [])
+                self.log(f"✅ Retrieved article categories: {categories_field}")
         
-        # Update article
+        # Update article with different secondary categories
         success4 = True
-        if article_id:
+        if article_id and len(secondary_categories) > 0:
             update_data = article_data.copy()
             update_data["title"] = "Updated " + update_data["title"]
+            update_data["secondary_categories"] = ["sponsored"]  # Change secondary category
             success4, response4 = self.run_test(
-                "Admin Update Article",
+                "Admin Update Article (Change Secondary Categories)",
                 "PUT",
                 f"admin/articles/{article_id}",
                 200,
                 data=update_data
             )
+            if success4:
+                updated_categories = response4.get('categories', [])
+                self.log(f"✅ Updated article categories: {updated_categories}")
         
         # Delete article
         success5 = True

@@ -28,7 +28,8 @@ export default function Footer() {
               <Link to="/category/crypto" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Crypto</Link>
               <Link to="/category/markets" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Markets</Link>
               <Link to="/category/defi" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">DeFi</Link>
-              <Link to="/category/analysis" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Analysis</Link>
+              <Link to="/category/sponsored" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Sponsored</Link>
+              <Link to="/category/press-releases" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Press Releases</Link>
             </div>
           </div>
 
