@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import DOMPurify from 'dompurify';
 import { Helmet } from 'react-helmet-async';
 import { Clock, User, ArrowLeft, Share2, Tag } from 'lucide-react';
 import { ArticleCardSecondary } from '../components/ArticleCard';
@@ -160,7 +161,7 @@ export default function ArticlePage() {
         )}
 
         {/* Content */}
-        <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: article.content }} />
+        <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_TAGS: ['iframe', 'blockquote'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'data-twitter-embed', 'target'] }) }} />
 
         {/* Tags */}
         {article.tags?.length > 0 && (

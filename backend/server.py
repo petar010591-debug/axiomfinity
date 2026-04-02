@@ -12,7 +12,6 @@ import jwt
 import httpx
 import secrets
 import uuid
-import requests as sync_requests
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -93,32 +92,25 @@ def serialize_doc(doc):
 def serialize_list(docs):
     return [serialize_doc(d) for d in docs]
 
-# ─── OBJECT STORAGE ───
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
-APP_NAME = "finnews"
-_storage_key = None
+# ─── CLOUDINARY STORAGE ───
+import cloudinary
+import cloudinary.uploader
 
-def init_storage():
-    global _storage_key
-    if _storage_key:
-        return _storage_key
-    resp = sync_requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-    resp.raise_for_status()
-    _storage_key = resp.json()["storage_key"]
-    return _storage_key
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = sync_requests.put(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120)
-    resp.raise_for_status()
-    return resp.json()
-
-def get_object(path: str):
-    key = init_storage()
-    resp = sync_requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+def upload_to_cloudinary(data: bytes, filename: str, content_type: str) -> str:
+    result = cloudinary.uploader.upload(
+        data,
+        folder="finnews",
+        public_id=filename.rsplit(".", 1)[0],
+        resource_type="image"
+    )
+    return result["secure_url"]
 
 # ─── RBAC ───
 ROLES_HIERARCHY = {"super_admin": 4, "admin": 3, "editor": 2, "author": 1}
@@ -675,10 +667,10 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     if len(data) > max_size:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "png"
-    filename = f"{APP_NAME}/{uuid.uuid4().hex}.{ext}"
+    filename = f"{uuid.uuid4().hex}.{ext}"
     try:
-        result = put_object(filename, data, file.content_type)
-        return {"url": result.get("url", ""), "path": filename, "size": len(data)}
+        url = upload_to_cloudinary(data, filename, file.content_type)
+        return {"url": url, "path": filename, "size": len(data)}
     except Exception as e:
         logger.error(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail="Upload failed")
@@ -1081,16 +1073,11 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await seed_admin()
     await seed_data()
-    # Init storage
-    try:
-        init_storage()
-        logger.info("Object storage initialized")
-    except Exception as e:
-        logger.warning(f"Storage init deferred: {e}")
-    # Write test credentials
-    os.makedirs("/app/memory", exist_ok=True)
-    with open("/app/memory/test_credentials.md", "w") as f:
-        f.write(f"# Test Credentials\n\n## Admin\n- Email: {ADMIN_EMAIL}\n- Password: {ADMIN_PASSWORD}\n- Role: admin\n\n## Auth Endpoints\n- POST /api/auth/login\n- POST /api/auth/logout\n- GET /api/auth/me\n")
+    # Verify Cloudinary config
+    if os.environ.get("CLOUDINARY_CLOUD_NAME"):
+        logger.info("Cloudinary configured")
+    else:
+        logger.warning("Cloudinary not configured - image uploads will fail")
     logger.info("Startup complete")
 
 @app.on_event("shutdown")
