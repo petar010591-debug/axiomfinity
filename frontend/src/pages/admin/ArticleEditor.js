@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { Save, ArrowLeft, Eye, Calendar } from 'lucide-react';
+import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2 } from 'lucide-react';
 import TipTapEditor from '../../components/TipTapEditor';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -19,6 +19,7 @@ export default function ArticleEditor() {
   const [allTags, setAllTags] = useState([]);
   const [tagInput, setTagInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -130,15 +131,43 @@ export default function ArticleEditor() {
           <TipTapEditor content={form.content} onChange={(html) => updateField('content', html)} />
         </div>
 
-        {/* Featured Image URL */}
+        {/* Featured Image */}
         <div>
-          <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Featured Image URL</label>
-          <input
-            type="text" value={form.featured_image} onChange={e => updateField('featured_image', e.target.value)}
-            className="w-full px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
-            placeholder="https://..."
-            data-testid="article-image-input"
-          />
+          <label className="block text-sm font-medium text-[#9CA3AF] mb-1.5">Featured Image</label>
+          <div className="flex gap-2">
+            <input
+              type="text" value={form.featured_image} onChange={e => updateField('featured_image', e.target.value)}
+              className="flex-1 px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
+              placeholder="https://... or upload from your PC"
+              data-testid="article-image-input"
+            />
+            <label className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${uploading ? 'bg-[#232B3E] text-[#6B7280]' : 'bg-[#D4AF37] text-black hover:bg-[#C39F2F]'}`} data-testid="image-upload-btn">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? 'Uploading...' : 'Upload'}
+              <input
+                type="file" accept="image/*" className="hidden" disabled={uploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploading(true);
+                  setError('');
+                  try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const { data } = await axios.post(`${API}/upload`, formData, {
+                      headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+                    });
+                    updateField('featured_image', data.url);
+                  } catch (err) {
+                    setError('Image upload failed. Check Cloudinary configuration.');
+                  } finally {
+                    setUploading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+          </div>
           {form.featured_image && (
             <div className="mt-2 rounded-lg overflow-hidden border border-[#232B3E] max-w-xs">
               <img src={form.featured_image} alt="Preview" className="w-full h-32 object-cover" />
