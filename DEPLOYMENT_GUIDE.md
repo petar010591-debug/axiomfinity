@@ -2,214 +2,191 @@
 
 ## Prerequisites
 
-Before you start, make sure you have:
 - A [Railway](https://railway.app) account (sign up with GitHub)
 - Your code pushed to GitHub (use "Save to GitHub" in Emergent)
 - A [Cloudinary](https://cloudinary.com) account (free tier is fine)
-- Your custom domain ready
 
 ---
 
 ## Step 1: Get Your Cloudinary Credentials
 
 1. Go to [cloudinary.com](https://cloudinary.com) and sign up (free)
-2. From your **Dashboard**, copy these three values:
+2. From your **Dashboard**, copy:
    - **Cloud Name** (e.g., `dxyz1234`)
    - **API Key** (e.g., `123456789012345`)
    - **API Secret** (e.g., `abcDEF123-ghiJKL456`)
-
-You'll need these in Step 3.
 
 ---
 
 ## Step 2: Create Railway Project
 
-1. Go to [railway.app](https://railway.app) and click **"New Project"**
-2. Choose **"Deploy from GitHub repo"**
-3. Select your FinNews repository
+1. Go to [railway.app](https://railway.app) → **"New Project"**
+2. Choose **"Deploy from GitHub repo"** → select your FinNews repository
 
-Railway will detect the monorepo. You'll create **3 services**: Backend, Frontend, and MongoDB.
+You will create **3 services**: MongoDB, Backend, and Frontend.
 
 ---
 
 ## Step 3: Add MongoDB
 
 1. In your Railway project, click **"+ New"** → **"Database"** → **"MongoDB"**
-2. Railway provisions a MongoDB instance automatically
-3. Click on the MongoDB service → **"Variables"** tab
-4. Copy the `MONGO_URL` value (looks like `mongodb://mongo:password@hostname:port`)
+2. Railway auto-provisions MongoDB
+3. Note: You'll reference this as `${{MongoDB.MONGO_URL}}` in the backend variables
 
 ---
 
 ## Step 4: Deploy the Backend
 
 1. Click **"+ New"** → **"GitHub Repo"** → select your repo
-2. Go to **Settings** tab:
+2. **Settings** tab:
    - **Root Directory**: `backend`
-   - **Builder**: Dockerfile (it will auto-detect `/backend/Dockerfile`)
-3. Go to **Variables** tab and add:
+   - **Builder**: Dockerfile (auto-detected)
+3. **Networking** tab:
+   - Click **"Generate Domain"** → gives you something like `backend-abc123.up.railway.app`
+   - **COPY THIS URL** — you need it for Step 5
+4. **Variables** tab — add ALL of these:
 
 ```
-MONGO_URL=<paste from Step 3>
+MONGO_URL=${{MongoDB.MONGO_URL}}
 DB_NAME=finnews
-JWT_SECRET=<generate a random 64-char string>
-ADMIN_EMAIL=<your admin email>
-ADMIN_PASSWORD=<your admin password>
+JWT_SECRET=<run: openssl rand -hex 32>
+ADMIN_EMAIL=petar010591@gmail.com
+ADMIN_PASSWORD=Zvezda2023!
 CLOUDINARY_CLOUD_NAME=<from Step 1>
 CLOUDINARY_API_KEY=<from Step 1>
 CLOUDINARY_API_SECRET=<from Step 1>
 SITE_URL=https://yourdomain.com
+PORT=8001
 ```
 
-> To generate JWT_SECRET, run in terminal: `openssl rand -hex 32`
-
-4. Go to **Settings** → **Networking** → **Generate Domain** (gives you a Railway URL like `backend-xxx.up.railway.app`)
-5. Note this URL — you need it for the frontend
+> **Important**: `${{MongoDB.MONGO_URL}}` is a Railway reference variable — type it exactly like that and Railway auto-fills the real connection string.
 
 ---
 
 ## Step 5: Deploy the Frontend
 
 1. Click **"+ New"** → **"GitHub Repo"** → select your repo again
-2. Go to **Settings** tab:
+2. **Settings** tab:
    - **Root Directory**: `frontend`
-   - **Builder**: Dockerfile
-3. Go to **Variables** tab and add:
+   - **Builder**: Dockerfile (auto-detected)
+3. **Variables** tab — add:
 
 ```
-REACT_APP_BACKEND_URL=https://<backend-railway-url-from-step-4>
+BACKEND_URL=https://<backend-domain-from-step-4>
 ```
 
-> **Important**: This is a build-time variable. The Dockerfile uses `ARG` to bake it into the React build.
+For example: `BACKEND_URL=https://backend-abc123.up.railway.app`
 
-4. Go to **Settings** → **Networking** → **Generate Domain**
+> **How this works**: The frontend nginx server proxies all `/api` requests to your backend service. No CORS issues, clean URLs.
+
+4. **Networking** tab → **Generate Domain** (this is your public site URL)
 
 ---
 
-## Step 6: Configure Backend CORS (if needed)
+## Step 6: Verify It Works
 
-Your backend already allows all origins (`allow_origins=["*"]`). For production, you may want to restrict this to your domain. Edit `server.py`:
-
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://yourdomain.com", "https://www.yourdomain.com"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
+1. Visit your **frontend URL** → homepage should show with ticker + articles
+2. Go to `/admin/login` → log in with `petar010591@gmail.com` / `Zvezda2023!`
+3. Check the backend logs in Railway if something doesn't work
 
 ---
 
 ## Step 7: Connect Your Custom Domain
 
-### For the Frontend (your main domain):
+### Frontend (main domain):
 
-1. In Railway, click on your **Frontend service**
-2. Go to **Settings** → **Networking** → **Custom Domain**
-3. Click **"+ Custom Domain"**
-4. Enter your domain: `yourdomain.com`
-5. Railway shows you DNS records to add. Go to your domain registrar and add:
+1. In Railway → **Frontend service** → **Settings** → **Networking** → **Custom Domain**
+2. Click **"+ Custom Domain"** → enter `yourdomain.com`
+3. Railway shows DNS records. At your domain registrar, add:
 
-   | Type  | Name | Value                          |
-   |-------|------|--------------------------------|
-   | CNAME | @    | `<railway-provided-value>.up.railway.app` |
+   | Type  | Name | Value |
+   |-------|------|-------|
+   | CNAME | www  | `<railway-value>.up.railway.app` |
 
-   If your registrar doesn't support CNAME on root (`@`), add:
-   
-   | Type  | Name | Value                          |
-   |-------|------|--------------------------------|
-   | CNAME | www  | `<railway-provided-value>.up.railway.app` |
+   For root domain (`@`), if your registrar supports it:
+   | Type  | Name | Value |
+   |-------|------|-------|
+   | CNAME | @    | `<railway-value>.up.railway.app` |
 
-   Then set up a redirect from `yourdomain.com` → `www.yourdomain.com` at your registrar.
+4. Wait 5-30 minutes for DNS propagation
+5. Railway auto-provisions SSL
 
-6. Wait for DNS propagation (usually 5-30 minutes)
-7. Railway auto-provisions SSL certificate once DNS is verified
+### After domain is connected:
 
-### For the Backend API (subdomain):
-
-1. Click on your **Backend service**
-2. Go to **Settings** → **Networking** → **Custom Domain**
-3. Add: `api.yourdomain.com`
-4. At your registrar, add:
-
-   | Type  | Name | Value                          |
-   |-------|------|--------------------------------|
-   | CNAME | api  | `<railway-provided-value>.up.railway.app` |
-
-5. After DNS propagates, update your **Frontend** service's variable:
-   ```
-   REACT_APP_BACKEND_URL=https://api.yourdomain.com
-   ```
-6. Redeploy the frontend (Railway does this automatically on variable change)
+Update `SITE_URL` in backend variables to your real domain (for sitemap generation):
+```
+SITE_URL=https://yourdomain.com
+```
 
 ---
 
-## Step 8: Verify Everything Works
-
-1. Visit `https://yourdomain.com` — homepage should load with ticker + articles
-2. Visit `https://yourdomain.com/admin/login` — log in with your admin credentials
-3. Create a test article with an image upload — confirms Cloudinary works
-4. Visit `https://api.yourdomain.com/api/sitemap.xml` — should show XML sitemap
-
----
-
-## Architecture After Deployment
+## Architecture on Railway
 
 ```
-yourdomain.com (Frontend - Nginx serving React build)
-    |
-    v
-api.yourdomain.com (Backend - FastAPI on Railway)
-    |
-    +---> MongoDB (Railway internal database)
-    +---> Cloudinary (Image storage CDN)
-    +---> CoinGecko API (Market data)
+yourdomain.com
+      |
+      v
+  [Frontend Service - Nginx]
+      |
+      |  /api/* requests proxied to:
+      v
+  [Backend Service - FastAPI]
+      |
+      v
+  [MongoDB Service]
+      |
+  [Cloudinary CDN - images]
+  [CoinGecko API - market data]
 ```
+
+**Key point**: Only the frontend needs a public domain. The backend communicates through the frontend's nginx proxy. This means:
+- No CORS issues
+- Single domain for everything
+- Backend stays private
 
 ---
 
 ## Environment Variables Reference
 
-### Backend
-| Variable               | Required | Description                          |
-|------------------------|----------|--------------------------------------|
-| MONGO_URL              | Yes      | MongoDB connection string            |
-| DB_NAME                | Yes      | Database name (use `finnews`)        |
-| JWT_SECRET             | Yes      | Random secret for token signing      |
-| ADMIN_EMAIL            | Yes      | Default admin account email          |
-| ADMIN_PASSWORD         | Yes      | Default admin account password       |
-| CLOUDINARY_CLOUD_NAME  | Yes      | Cloudinary cloud name                |
-| CLOUDINARY_API_KEY     | Yes      | Cloudinary API key                   |
-| CLOUDINARY_API_SECRET  | Yes      | Cloudinary API secret                |
-| SITE_URL               | No       | Public URL for sitemap generation    |
+### Backend Service
+| Variable               | Required | Example                          |
+|------------------------|----------|----------------------------------|
+| MONGO_URL              | Yes      | `${{MongoDB.MONGO_URL}}`         |
+| DB_NAME                | Yes      | `finnews`                        |
+| JWT_SECRET             | Yes      | `a1b2c3...` (64 random chars)    |
+| ADMIN_EMAIL            | Yes      | `petar010591@gmail.com`          |
+| ADMIN_PASSWORD         | Yes      | `Zvezda2023!`                    |
+| CLOUDINARY_CLOUD_NAME  | Yes      | `dxyz1234`                       |
+| CLOUDINARY_API_KEY     | Yes      | `123456789012345`                |
+| CLOUDINARY_API_SECRET  | Yes      | `abcDEF123-ghiJKL456`           |
+| SITE_URL               | No       | `https://yourdomain.com`         |
+| PORT                   | No       | `8001` (Railway auto-sets this)  |
 
-### Frontend
-| Variable                | Required | Description                        |
-|-------------------------|----------|------------------------------------|
-| REACT_APP_BACKEND_URL   | Yes      | Backend API URL (build-time)       |
+### Frontend Service
+| Variable     | Required | Example                                        |
+|--------------|----------|-------------------------------------------------|
+| BACKEND_URL  | Yes      | `https://backend-abc123.up.railway.app`         |
 
 ---
 
 ## Troubleshooting
 
-**Frontend shows blank page**: Check that `REACT_APP_BACKEND_URL` was set BEFORE the build. It's a build-time variable — changing it requires a redeploy.
+**Login returns 405 error**: `BACKEND_URL` is not set on the frontend service. Nginx can't proxy to backend.
 
-**API returns CORS errors**: Verify the backend's `allow_origins` includes your frontend domain.
+**Login says "Invalid email or password"**: Check that `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set in backend variables. Redeploy the backend — it resets the admin password on every startup.
 
-**Images fail to upload**: Check Cloudinary credentials in backend variables. Look at Railway logs for the backend service.
+**Frontend shows blank page**: Check Railway logs for the frontend service. The build might have failed.
 
-**Market ticker shows stale prices**: CoinGecko free tier has rate limits. Prices cache for 2 minutes. For higher limits, add a CoinGecko API key.
+**Images fail to upload**: Verify all 3 Cloudinary variables are set in backend.
 
-**Database connection fails**: Verify `MONGO_URL` in backend variables matches the Railway MongoDB service's connection string. Use the **Reference Variable** feature: `${{MongoDB.MONGO_URL}}`.
+**Market ticker shows stale prices**: Normal — CoinGecko free tier has rate limits. Prices cache for 2 minutes.
+
+**MongoDB "Attempting to connect..."**: Railway's built-in DB viewer can be slow. If the backend connects fine (check backend logs), the DB is working.
 
 ---
 
-## Cost Estimate (Railway)
+## Cost
 
-- **Hobby Plan**: $5/month (includes $5 credit)
-  - Covers small-medium traffic for all 3 services
-- **MongoDB**: Included in Railway (or use free MongoDB Atlas for more control)
-- **Cloudinary**: Free tier = 25GB storage, 25GB bandwidth/month
-- **Custom Domain + SSL**: Free (Railway handles this automatically)
+- **Railway Hobby Plan**: $5/month (includes $5 usage credit)
+- **Cloudinary**: Free (25GB storage, 25GB bandwidth)
+- **Custom Domain + SSL**: Free (Railway handles this)

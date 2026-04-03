@@ -984,11 +984,12 @@ SAMPLE_PAGES = [
 ]
 
 async def seed_admin():
-    existing = await db.users.find_one({"email": ADMIN_EMAIL.lower()})
+    email = ADMIN_EMAIL.lower()
+    existing = await db.users.find_one({"email": email})
     if existing is None:
         hashed = hash_password(ADMIN_PASSWORD)
         await db.users.insert_one({
-            "email": ADMIN_EMAIL.lower(),
+            "email": email,
             "password_hash": hashed,
             "name": "Admin",
             "role": "super_admin",
@@ -999,27 +1000,15 @@ async def seed_admin():
             "website": "",
             "created_at": datetime.now(timezone.utc).isoformat()
         })
-        logger.info(f"Admin user created: {ADMIN_EMAIL}")
+        logger.info(f"Admin user created: {email}")
     else:
-        # Ensure super_admin role and profile fields
-        updates = {}
-        if existing.get("role") != "super_admin":
-            updates["role"] = "super_admin"
-        if "bio" not in existing:
-            updates["bio"] = "Chief Editor at FinNews"
-        if "avatar_url" not in existing:
-            updates["avatar_url"] = ""
-        if "social_twitter" not in existing:
-            updates["social_twitter"] = ""
-        if "social_linkedin" not in existing:
-            updates["social_linkedin"] = ""
-        if "website" not in existing:
-            updates["website"] = ""
-        if not verify_password(ADMIN_PASSWORD, existing["password_hash"]):
-            updates["password_hash"] = hash_password(ADMIN_PASSWORD)
-        if updates:
-            await db.users.update_one({"email": ADMIN_EMAIL.lower()}, {"$set": updates})
-            logger.info("Admin user updated")
+        # Always sync password and role from env vars on startup
+        updates = {"role": "super_admin", "password_hash": hash_password(ADMIN_PASSWORD)}
+        for field in ["bio", "avatar_url", "social_twitter", "social_linkedin", "website"]:
+            if field not in existing:
+                updates[field] = "Chief Editor at FinNews" if field == "bio" else ""
+        await db.users.update_one({"email": email}, {"$set": updates})
+        logger.info(f"Admin user synced: {email}")
 
 async def seed_data():
     # Seed categories

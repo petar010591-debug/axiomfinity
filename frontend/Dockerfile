@@ -7,16 +7,23 @@ RUN yarn install --frozen-lockfile
 
 COPY . .
 
-ARG REACT_APP_BACKEND_URL
-ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
+# Build with empty backend URL - nginx proxies /api to backend at runtime
+ENV REACT_APP_BACKEND_URL=""
 
 RUN yarn build
 
 FROM nginx:alpine
 
+# Remove default nginx config
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Template is auto-processed by nginx:alpine entrypoint (envsubst)
+# ${BACKEND_URL} and ${PORT} are replaced at container startup
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# Railway sets PORT env var; default to 3000
+ENV PORT=3000
 
 EXPOSE 3000
-
-CMD ["nginx", "-g", "daemon off;"]
