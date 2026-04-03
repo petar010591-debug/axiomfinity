@@ -23,7 +23,7 @@ export default function AboutPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="about-page">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#F3F4F6] mb-4" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
-          About FinNews
+          About AxiomFinity
         </h1>
         <p className="text-lg text-[#9CA3AF] mb-12 max-w-2xl">
           Your trusted source for financial news, analysis, and educational content in the digital asset space.

@@ -56,12 +56,10 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group" data-testid="header-logo">
-            <div className="w-8 h-8 rounded-sm bg-[#D4AF37] flex items-center justify-center">
-              <span className="text-black font-bold text-sm" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>FN</span>
-            </div>
+          <Link to="/" className="flex items-center gap-2.5 group" data-testid="header-logo">
+            <img src="/logo.png" alt="AxiomFinity" className="w-8 h-8 rounded-sm object-contain" />
             <span className="text-lg font-bold text-[#F3F4F6] tracking-tight hidden sm:block" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
-              Fin<span className="text-[#D4AF37]">News</span>
+              Axiom<span className="text-[#D4AF37]">Finity</span>
             </span>
           </Link>
 

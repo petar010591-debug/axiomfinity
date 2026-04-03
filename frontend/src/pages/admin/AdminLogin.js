@@ -36,8 +36,8 @@ export default function AdminLogin() {
     <div className="min-h-[80vh] flex items-center justify-center px-4" data-testid="admin-login-page">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-lg bg-[#D4AF37] flex items-center justify-center mx-auto mb-4">
-            <span className="text-black font-bold text-lg" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>FN</span>
+          <div className="w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
+            <img src="/logo.png" alt="AxiomFinity" className="w-12 h-12 rounded-lg object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Admin Login</h1>
           <p className="text-sm text-[#6B7280] mt-1">Sign in to access the CMS dashboard</p>

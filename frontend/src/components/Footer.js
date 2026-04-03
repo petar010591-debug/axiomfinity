@@ -8,11 +8,9 @@ export default function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-sm bg-[#D4AF37] flex items-center justify-center">
-                <span className="text-black font-bold text-sm" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>FN</span>
-              </div>
+              <img src="/logo.png" alt="AxiomFinity" className="w-8 h-8 rounded-sm object-contain" />
               <span className="text-lg font-bold text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
-                Fin<span className="text-[#D4AF37]">News</span>
+                Axiom<span className="text-[#D4AF37]">Finity</span>
               </span>
             </Link>
             <p className="text-sm text-[#6B7280] leading-relaxed">
@@ -55,7 +53,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-[#1A202E] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-[#6B7280]">&copy; {new Date().getFullYear()} FinNews. All rights reserved.</p>
+          <p className="text-xs text-[#6B7280]">&copy; {new Date().getFullYear()} AxiomFinity. All rights reserved.</p>
           <p className="text-xs text-[#6B7280]">
             Content is for informational purposes only. Not financial advice.
           </p>

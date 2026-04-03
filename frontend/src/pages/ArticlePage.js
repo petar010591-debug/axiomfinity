@@ -80,7 +80,7 @@ export default function ArticlePage() {
   return (
     <div data-testid="article-page">
       <Helmet>
-        <title>{`${ogTitle} | FinNews`}</title>
+        <title>{`${ogTitle} | AxiomFinity`}</title>
         <meta name="description" content={ogDescription} />
         <meta property="og:title" content={ogTitle} />
         <meta property="og:description" content={ogDescription} />

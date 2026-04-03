@@ -59,7 +59,7 @@ export default function AdminDashboard() {
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-[#9CA3AF]">
           {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
-        <span className="text-sm font-bold text-[#D4AF37]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>FinNews CMS</span>
+        <span className="text-sm font-bold text-[#D4AF37]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>AxiomFinity CMS</span>
         <Link to="/" className="text-xs text-[#6B7280]">View Site</Link>
       </div>
 
@@ -68,9 +68,7 @@ export default function AdminDashboard() {
         <aside className={`fixed lg:sticky top-0 left-0 z-40 h-screen w-60 bg-[#121620] border-r border-[#232B3E] flex flex-col transition-transform lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="admin-sidebar">
           <div className="p-4 border-b border-[#232B3E]">
             <Link to="/admin" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-sm bg-[#D4AF37] flex items-center justify-center">
-                <span className="text-black font-bold text-xs">FN</span>
-              </div>
+              <img src="/logo.png" alt="AxiomFinity" className="w-7 h-7 rounded-sm object-contain" />
               <span className="text-sm font-bold text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>CMS Dashboard</span>
             </Link>
           </div>

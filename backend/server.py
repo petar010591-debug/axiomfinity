@@ -992,7 +992,7 @@ async def seed_admin():
             "password_hash": hashed,
             "name": "Admin",
             "role": "super_admin",
-            "bio": "Chief Editor at FinNews",
+            "bio": "Chief Editor at AxiomFinity",
             "avatar_url": "",
             "social_twitter": "",
             "social_linkedin": "",
@@ -1005,7 +1005,7 @@ async def seed_admin():
         updates = {"role": "super_admin", "password_hash": hash_password(ADMIN_PASSWORD)}
         for field in ["bio", "avatar_url", "social_twitter", "social_linkedin", "website"]:
             if field not in existing:
-                updates[field] = "Chief Editor at FinNews" if field == "bio" else ""
+                updates[field] = "Chief Editor at AxiomFinity" if field == "bio" else ""
         await db.users.update_one({"email": email}, {"$set": updates})
         logger.info(f"Admin user synced: {email}")
 
