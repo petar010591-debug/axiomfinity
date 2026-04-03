@@ -13,8 +13,7 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem('token');
       if (!token) { setLoading(false); return; }
       const { data } = await axios.get(`${API}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-        withCredentials: true
+        headers: { Authorization: `Bearer ${token}` }
       });
       setUser(data);
     } catch {
@@ -28,7 +27,7 @@ export function AuthProvider({ children }) {
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
   const login = async (email, password) => {
-    const { data } = await axios.post(`${API}/auth/login`, { email, password }, { withCredentials: true });
+    const { data } = await axios.post(`${API}/auth/login`, { email, password });
     localStorage.setItem('token', data.token);
     setUser(data);
     return data;
@@ -38,8 +37,7 @@ export function AuthProvider({ children }) {
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${API}/auth/logout`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-        withCredentials: true
+        headers: { Authorization: `Bearer ${token}` }
       });
     } catch {}
     localStorage.removeItem('token');
