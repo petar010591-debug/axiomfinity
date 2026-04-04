@@ -8,6 +8,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const forceLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    setUser(null);
+    window.location.href = '/admin/login';
+  }, []);
+
   const checkAuth = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -23,6 +29,20 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
   }, []);
+
+  // Intercept 401 responses globally — auto-logout on expired token
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err.response?.status === 401 && localStorage.getItem('token')) {
+          forceLogout();
+        }
+        return Promise.reject(err);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, [forceLogout]);
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
