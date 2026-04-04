@@ -779,7 +779,7 @@ async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)
 @api_router.get("/sitemap.xml")
 async def sitemap():
     from fastapi.responses import Response as FastResponse
-    base_url = os.environ.get("SITE_URL", "https://finnews.com")
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
     articles = await db.articles.find(build_public_query(), {"slug": 1, "category_slug": 1, "updated_at": 1}).to_list(5000)
     categories = await db.categories.find({}, {"slug": 1}).to_list(100)
     pages = await db.pages.find({}, {"slug": 1, "updated_at": 1}).to_list(100)
