@@ -155,7 +155,7 @@ export default function ArticleEditor() {
                     const formData = new FormData();
                     formData.append('file', file);
                     const { data } = await axios.post(`${API}/upload`, formData, {
-                      headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+                      headers: getAuthHeader()
                     });
                     updateField('featured_image', data.url);
                   } catch (err) {

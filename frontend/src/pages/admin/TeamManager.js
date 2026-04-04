@@ -38,7 +38,7 @@ export default function TeamManager() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const { data } = await axios.post(`${API}/upload`, formData, { headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' } });
+      const { data } = await axios.post(`${API}/upload`, formData, { headers: getAuthHeader() });
       setForm(prev => ({ ...prev, avatar_url: data.url }));
     } catch { alert('Upload failed'); }
     finally { setUploading(false); e.target.value = ''; }
