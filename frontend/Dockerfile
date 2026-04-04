@@ -13,32 +13,41 @@ ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 
 RUN yarn build
 
-# Generate nginx config with backend URL baked in
-RUN echo "server {" > /tmp/nginx.conf && \
-    echo "    listen 3000;" >> /tmp/nginx.conf && \
-    echo "    server_name _;" >> /tmp/nginx.conf && \
-    echo "    root /usr/share/nginx/html;" >> /tmp/nginx.conf && \
-    echo "    index index.html;" >> /tmp/nginx.conf && \
-    echo "" >> /tmp/nginx.conf && \
-    echo "    location = /sitemap.xml {" >> /tmp/nginx.conf && \
-    echo "        proxy_pass ${REACT_APP_BACKEND_URL}/api/sitemap.xml;" >> /tmp/nginx.conf && \
-    echo "        proxy_set_header Host \$host;" >> /tmp/nginx.conf && \
-    echo "    }" >> /tmp/nginx.conf && \
-    echo "" >> /tmp/nginx.conf && \
-    echo "    location = /news-sitemap.xml {" >> /tmp/nginx.conf && \
-    echo "        proxy_pass ${REACT_APP_BACKEND_URL}/api/news-sitemap.xml;" >> /tmp/nginx.conf && \
-    echo "        proxy_set_header Host \$host;" >> /tmp/nginx.conf && \
-    echo "    }" >> /tmp/nginx.conf && \
-    echo "" >> /tmp/nginx.conf && \
-    echo "    location / {" >> /tmp/nginx.conf && \
-    echo "        try_files \$uri \$uri/ /index.html;" >> /tmp/nginx.conf && \
-    echo "    }" >> /tmp/nginx.conf && \
-    echo "" >> /tmp/nginx.conf && \
-    echo "    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)\$ {" >> /tmp/nginx.conf && \
-    echo "        expires 1y;" >> /tmp/nginx.conf && \
-    echo "        add_header Cache-Control \"public, immutable\";" >> /tmp/nginx.conf && \
-    echo "    }" >> /tmp/nginx.conf && \
-    echo "}" >> /tmp/nginx.conf
+# Generate nginx config with proper HTTPS proxy for sitemaps
+RUN BACKEND="${REACT_APP_BACKEND_URL}" && \
+    cat > /tmp/nginx.conf << NGINXEOF
+resolver 8.8.8.8 1.1.1.1 valid=30s;
+
+server {
+    listen 3000;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location = /sitemap.xml {
+        proxy_pass ${BACKEND}/api/sitemap.xml;
+        proxy_ssl_server_name on;
+        proxy_set_header Host \$host;
+        proxy_set_header Accept "application/xml";
+    }
+
+    location = /news-sitemap.xml {
+        proxy_pass ${BACKEND}/api/news-sitemap.xml;
+        proxy_ssl_server_name on;
+        proxy_set_header Host \$host;
+        proxy_set_header Accept "application/xml";
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)\$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+NGINXEOF
 
 FROM nginx:alpine
 
