@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
 import {
-  LayoutDashboard, FileText, FolderOpen, Tag, Home, LogOut, ChevronRight, Plus, Eye, PenLine, Archive, Menu, X, Users, UserCircle, Clock
+  LayoutDashboard, FileText, FolderOpen, Tag, Home, LogOut, ChevronRight, Plus, Eye, PenLine, Archive, Menu, X, Users, UserCircle, Clock, FileEdit, Globe, ArrowUpDown, UsersRound
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -13,8 +13,11 @@ const SIDEBAR_ITEMS = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { label: 'Articles', href: '/admin/articles', icon: FileText },
   { label: 'Categories', href: '/admin/categories', icon: FolderOpen },
+  { label: 'Pages', href: '/admin/pages', icon: FileEdit },
   { label: 'Homepage', href: '/admin/homepage', icon: Home },
-  { label: 'Team', href: '/admin/users', icon: Users },
+  { label: 'Team Members', href: '/admin/team', icon: UsersRound },
+  { label: 'Users & Roles', href: '/admin/users', icon: Users },
+  { label: 'SEO / Nofollow', href: '/admin/seo', icon: Globe },
   { label: 'My Profile', href: '/admin/profile', icon: UserCircle },
 ];
 

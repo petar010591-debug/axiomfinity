@@ -8,15 +8,20 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function AboutPage() {
   const [aboutContent, setAboutContent] = useState(null);
+  const [team, setTeam] = useState([]);
 
   useEffect(() => {
-    const fetchAbout = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await axios.get(`${API}/pages/about`);
-        setAboutContent(data);
+        const [aboutRes, teamRes] = await Promise.all([
+          axios.get(`${API}/pages/about`).catch(() => null),
+          axios.get(`${API}/team`).catch(() => ({ data: [] })),
+        ]);
+        if (aboutRes) setAboutContent(aboutRes.data);
+        setTeam(teamRes.data);
       } catch {}
     };
-    fetchAbout();
+    fetchData();
   }, []);
 
   return (
@@ -56,6 +61,37 @@ export default function AboutPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* Team Section */}
+      {team.length > 0 && (
+        <section className="mb-16" data-testid="team-section">
+          <h2 className="text-2xl font-bold text-[#F3F4F6] mb-2" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Our Team</h2>
+          <p className="text-sm text-[#6B7280] mb-8">Meet the people behind AxiomFinity.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {team.map((m, i) => (
+              <motion.div
+                key={m.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * i }}
+                className="bg-[#121620] border border-[#232B3E] rounded-lg p-6 text-center"
+                data-testid={`team-card-${m.id}`}
+              >
+                <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-[#1C2230] border-2 border-[#D4AF37]/20 overflow-hidden">
+                  {m.avatar_url ? (
+                    <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[#6B7280] text-3xl font-bold">{m.name?.[0]}</div>
+                  )}
+                </div>
+                <h3 className="text-base font-bold text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>{m.name}</h3>
+                <p className="text-sm text-[#D4AF37] mt-0.5">{m.role_title}</p>
+                {m.bio && <p className="text-xs text-[#9CA3AF] mt-3 leading-relaxed">{m.bio}</p>}
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -97,7 +133,7 @@ export function ContactPage() {
               </div>
               <div>
                 <p className="text-[#F3F4F6] font-medium">Email</p>
-                <p>contact@finnews.com</p>
+                <p>contact@axiomfinity.com</p>
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm text-[#9CA3AF]">

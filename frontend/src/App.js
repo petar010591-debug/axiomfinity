@@ -21,6 +21,10 @@ import CategoriesManager from "./pages/admin/CategoriesManager";
 import HomepageCuration from "./pages/admin/HomepageCuration";
 import UsersManager from "./pages/admin/UsersManager";
 import AdminProfile from "./pages/admin/AdminProfile";
+import PagesManager from "./pages/admin/PagesManager";
+import TeamManager from "./pages/admin/TeamManager";
+import SeoSettings from "./pages/admin/SeoSettings";
+import HomepageOrder from "./pages/admin/HomepageOrder";
 
 function Layout({ children }) {
   const location = useLocation();
@@ -68,8 +72,12 @@ function App() {
                 <Route path="articles/new" element={<ArticleEditor />} />
                 <Route path="articles/edit/:id" element={<ArticleEditor />} />
                 <Route path="categories" element={<CategoriesManager />} />
+                <Route path="pages" element={<PagesManager />} />
                 <Route path="homepage" element={<HomepageCuration />} />
+                <Route path="homepage/order" element={<HomepageOrder />} />
+                <Route path="team" element={<TeamManager />} />
                 <Route path="users" element={<UsersManager />} />
+                <Route path="seo" element={<SeoSettings />} />
                 <Route path="profile" element={<AdminProfile />} />
               </Route>
             </Routes>

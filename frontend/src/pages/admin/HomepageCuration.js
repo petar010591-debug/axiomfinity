@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { Save, RefreshCw } from 'lucide-react';
+import { Save, RefreshCw, ArrowUpDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -62,13 +63,16 @@ export default function HomepageCuration() {
           <h1 className="text-xl font-bold text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Homepage Curation</h1>
           <p className="text-sm text-[#6B7280] mt-1">Control which articles appear in the hero section</p>
         </div>
-        <button
-          onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 bg-[#D4AF37] text-black text-sm font-medium rounded-lg hover:bg-[#C39F2F] disabled:opacity-50 transition-colors"
-          data-testid="homepage-save-btn"
-        >
-          <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link to="/admin/homepage/order" className="flex items-center gap-1.5 px-3 py-2 text-xs text-[#D4AF37] border border-[#D4AF37]/30 rounded-lg hover:bg-[#D4AF37]/10" data-testid="section-order-link">
+            <ArrowUpDown className="w-3.5 h-3.5" /> Section Order
+          </Link>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#D4AF37] text-black text-sm font-medium rounded-lg hover:bg-[#C39F2F] disabled:opacity-50 transition-colors"
+            data-testid="homepage-save-btn">
+            <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
 
       {success && (

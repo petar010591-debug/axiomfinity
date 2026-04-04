@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File, Body
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -422,13 +422,27 @@ async def get_homepage_sections():
             shown_ids.add(a["id"])
     other_articles = await db.articles.find({**base_query, "_id": {"$nin": [ObjectId(i) for i in shown_ids]}}).sort("published_at", -1).limit(6).to_list(6)
 
-    return {
+    all_sections = {
         "latest": latest_serialized,
         "crypto": sections.get("crypto", []),
         "press_releases": sections.get("press-releases", []),
         "sponsored": sections.get("sponsored", []),
         "others": serialize_list(other_articles),
     }
+
+    # Get custom order
+    order_config = await db.site_settings.find_one({"_id": "homepage_order"})
+    if order_config and order_config.get("sections"):
+        ordered = {}
+        for key in order_config["sections"]:
+            if key in all_sections:
+                ordered[key] = all_sections[key]
+        for key in all_sections:
+            if key not in ordered:
+                ordered[key] = all_sections[key]
+        return ordered
+
+    return all_sections
 
 # ─── ADMIN ROUTES ───
 @api_router.get("/admin/articles")
@@ -792,6 +806,131 @@ async def sitemap():
     xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 {chr(10).join(urls)}
+</urlset>'''
+    return FastResponse(content=xml, media_type="application/xml")
+
+# ─── TEAM MEMBERS ───
+@api_router.get("/team")
+async def get_team_members():
+    members = await db.team_members.find({}).sort("order", 1).to_list(50)
+    return serialize_list(members)
+
+@api_router.get("/admin/team")
+async def admin_get_team(user: dict = Depends(get_current_user)):
+    members = await db.team_members.find({}).sort("order", 1).to_list(50)
+    return serialize_list(members)
+
+@api_router.post("/admin/team", status_code=201)
+async def admin_create_team_member(data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    count = await db.team_members.count_documents({})
+    doc = {
+        "name": data.get("name", ""),
+        "role_title": data.get("role_title", ""),
+        "bio": data.get("bio", ""),
+        "avatar_url": data.get("avatar_url", ""),
+        "order": data.get("order", count),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = await db.team_members.insert_one(doc)
+    doc["id"] = str(result.inserted_id)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.put("/admin/team/{member_id}")
+async def admin_update_team_member(member_id: str, data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    update = {k: v for k, v in data.items() if k in ["name", "role_title", "bio", "avatar_url", "order"]}
+    await db.team_members.update_one({"_id": ObjectId(member_id)}, {"$set": update})
+    return {"message": "Updated"}
+
+@api_router.delete("/admin/team/{member_id}")
+async def admin_delete_team_member(member_id: str, user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    await db.team_members.delete_one({"_id": ObjectId(member_id)})
+    return {"message": "Deleted"}
+
+# ─── NOFOLLOW SETTINGS ───
+@api_router.get("/admin/seo-settings")
+async def admin_get_seo_settings(user: dict = Depends(get_current_user)):
+    settings = await db.site_settings.find_one({"_id": "seo"})
+    if not settings:
+        return {"nofollow_enabled": True, "excluded_domains": ""}
+    return {"nofollow_enabled": settings.get("nofollow_enabled", True), "excluded_domains": settings.get("excluded_domains", "")}
+
+@api_router.put("/admin/seo-settings")
+async def admin_update_seo_settings(data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    await db.site_settings.update_one(
+        {"_id": "seo"},
+        {"$set": {"nofollow_enabled": data.get("nofollow_enabled", True), "excluded_domains": data.get("excluded_domains", "")}},
+        upsert=True,
+    )
+    return {"message": "SEO settings updated"}
+
+@api_router.get("/seo-settings/nofollow")
+async def get_nofollow_settings():
+    settings = await db.site_settings.find_one({"_id": "seo"})
+    if not settings:
+        return {"nofollow_enabled": True, "excluded_domains": ""}
+    return {"nofollow_enabled": settings.get("nofollow_enabled", True), "excluded_domains": settings.get("excluded_domains", "")}
+
+# ─── HOMEPAGE ORDER ───
+@api_router.get("/admin/homepage-order")
+async def admin_get_homepage_order(user: dict = Depends(get_current_user)):
+    config = await db.site_settings.find_one({"_id": "homepage_order"})
+    if not config:
+        return {"sections": ["latest", "crypto", "press_releases", "sponsored", "others"]}
+    return {"sections": config.get("sections", ["latest", "crypto", "press_releases", "sponsored", "others"])}
+
+@api_router.put("/admin/homepage-order")
+async def admin_update_homepage_order(data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    await db.site_settings.update_one(
+        {"_id": "homepage_order"},
+        {"$set": {"sections": data.get("sections", [])}},
+        upsert=True,
+    )
+    return {"message": "Homepage order updated"}
+
+# ─── NEWS SITEMAP (for Google News) ───
+@api_router.get("/news-sitemap.xml")
+async def news_sitemap():
+    from fastapi.responses import Response as FastResponse
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+    two_days_ago = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    articles = await db.articles.find({
+        "status": "published",
+        "published_at": {"$gte": two_days_ago}
+    }).sort("published_at", -1).to_list(1000)
+
+    entries = []
+    for a in articles:
+        cat_slug = a.get("category_slug", "news")
+        slug = a.get("slug", "")
+        title = a.get("title", "").replace("&", "&amp;").replace("<", "&lt;")
+        pub_date = a.get("published_at", "")
+        entries.append(f'''  <url>
+    <loc>{base_url}/{cat_slug}/{slug}</loc>
+    <news:news>
+      <news:publication>
+        <news:name>AxiomFinity</news:name>
+        <news:language>en</news:language>
+      </news:publication>
+      <news:publication_date>{pub_date}</news:publication_date>
+      <news:title>{title}</news:title>
+    </news:news>
+  </url>''')
+
+    xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+{chr(10).join(entries)}
 </urlset>'''
     return FastResponse(content=xml, media_type="application/xml")
 
