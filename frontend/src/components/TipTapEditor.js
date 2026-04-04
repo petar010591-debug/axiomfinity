@@ -10,7 +10,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { getAuthHeader } from '../contexts/AuthContext';
 import {
@@ -74,6 +74,13 @@ export default function TipTapEditor({ content, onChange }) {
       },
     },
   });
+
+  // Sync content from parent when it loads asynchronously (e.g. editing existing article)
+  useEffect(() => {
+    if (editor && content && editor.isEmpty) {
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
 
   const handleImageUpload = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return;

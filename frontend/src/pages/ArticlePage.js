@@ -14,6 +14,10 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+function formatSlug(slug) {
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export default function ArticlePage() {
   const { slug } = useParams();
   const [article, setArticle] = useState(null);
@@ -108,12 +112,17 @@ export default function ArticlePage() {
 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
             {article.category_name && (
               <Link to={`/category/${article.category_slug}`} className="px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37] text-black rounded hover:bg-[#C39F2F] transition-colors">
                 {article.category_name}
               </Link>
             )}
+            {(article.categories || []).filter(s => s !== article.category_slug).map(slug => (
+              <Link key={slug} to={`/category/${slug}`} className="px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30 rounded hover:bg-[#D4AF37]/25 transition-colors">
+                {formatSlug(slug)}
+              </Link>
+            ))}
             {article.is_sponsored && (
               <span className="px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37]/20 text-[#D4AF37] rounded">Sponsored</span>
             )}

@@ -8,6 +8,31 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function formatSlug(slug) {
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function CategoryBadges({ article, variant = 'default' }) {
+  const primary = article.category_name;
+  const primarySlug = article.category_slug;
+  const extras = (article.categories || []).filter(s => s !== primarySlug);
+
+  const badgeClass = variant === 'overlay'
+    ? 'px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] font-semibold rounded'
+    : 'px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold rounded';
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {primary && (
+        <span className={`${badgeClass} bg-[#D4AF37] text-black`}>{primary}</span>
+      )}
+      {extras.map(slug => (
+        <span key={slug} className={`${badgeClass} bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30`}>{formatSlug(slug)}</span>
+      ))}
+    </div>
+  );
+}
+
 export function ArticleCardHero({ article }) {
   if (!article) return null;
   return (
@@ -21,9 +46,9 @@ export function ArticleCardHero({ article }) {
         <div className="absolute inset-0 bg-gradient-to-t from-[#0A0D14] via-[#0A0D14]/60 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
           {article.is_sponsored && <span className="inline-block px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] bg-[#D4AF37]/20 text-[#D4AF37] rounded mb-3">Sponsored</span>}
-          {article.category_name && (
-            <span className="inline-block px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37] text-black rounded mb-3">{article.category_name}</span>
-          )}
+          <div className="mb-3">
+            <CategoryBadges article={article} variant="overlay" />
+          </div>
           <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#F3F4F6] leading-tight mb-3" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
             {article.title}
           </h2>
@@ -51,7 +76,9 @@ export function ArticleCardSecondary({ article }) {
           <img src={article.featured_image} alt={article.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#121620] to-transparent opacity-60" />
           {article.category_name && (
-            <span className="absolute top-3 left-3 px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37] text-black rounded">{article.category_name}</span>
+            <div className="absolute top-3 left-3">
+              <CategoryBadges article={article} variant="overlay" />
+            </div>
           )}
         </div>
         <div className="p-4">
