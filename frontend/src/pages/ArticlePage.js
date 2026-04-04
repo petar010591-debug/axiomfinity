@@ -118,7 +118,7 @@ export default function ArticlePage() {
                 {article.category_name}
               </Link>
             )}
-            {(article.categories || []).filter(s => s !== article.category_slug).map(slug => (
+            {(article.categories || []).filter(s => s !== article.category_slug && !(s === 'sponsored' && article.is_sponsored)).map(slug => (
               <Link key={slug} to={`/category/${slug}`} className="px-2.5 py-1 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30 rounded hover:bg-[#D4AF37]/25 transition-colors">
                 {formatSlug(slug)}
               </Link>

@@ -12,9 +12,11 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 - Homepage with reorderable sections (Latest, Crypto, Press Releases, Sponsored, More Stories)
 - Live market ticker (CoinGecko), article pages with DOMPurify sanitization
 - Education, About (with team section), Contact, Legal pages, Search, Author profiles
+- **Multiple category badges** on article cards and article detail pages
 
 ### Admin CMS
 - Articles CRUD with TipTap WYSIWYG editor + image upload (Cloudinary)
+- **TipTap content loads correctly when editing existing articles** (async content sync fix)
 - Categories & Tags management
 - **Pages editor** (Privacy Policy, Terms, Financial Disclaimer, About, Education pages)
 - **Homepage section reordering** (move sections up/down)
@@ -37,5 +39,7 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 - Cloudinary credentials on Railway (image uploads won't work without them)
 
 ## Backlog
-- P2: CTA buttons in editor, article revision history, RSS feed
+- P1: RSS Feed endpoint (`/api/rss.xml`)
+- P2: CTA buttons in editor, article revision history
+- P2: Google Search Console sitemap proxy fix (deprioritized)
 - P3: Comments, newsletter, analytics dashboard, MFA

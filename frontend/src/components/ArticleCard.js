@@ -15,7 +15,7 @@ function formatSlug(slug) {
 function CategoryBadges({ article, variant = 'default' }) {
   const primary = article.category_name;
   const primarySlug = article.category_slug;
-  const extras = (article.categories || []).filter(s => s !== primarySlug);
+  const extras = (article.categories || []).filter(s => s !== primarySlug && !(s === 'sponsored' && article.is_sponsored));
 
   const badgeClass = variant === 'overlay'
     ? 'px-2 py-0.5 text-[10px] uppercase tracking-[0.15em] font-semibold rounded'
