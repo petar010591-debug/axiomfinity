@@ -12,18 +12,14 @@ ARG REACT_APP_BACKEND_URL
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 
 RUN yarn build
-RUN echo "$REACT_APP_BACKEND_URL" > /tmp/backend_url
 
-FROM node:20-alpine
+FROM nginx:alpine
 
-WORKDIR /app
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-RUN npm install express
-
-COPY --from=build /app/build ./build
-COPY --from=build /tmp/backend_url /tmp/backend_url
-COPY server.js .
+COPY --from=build /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]
