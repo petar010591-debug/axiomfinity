@@ -859,6 +859,84 @@ async def sitemap():
 </urlset>'''
     return FastResponse(content=xml, media_type="application/xml")
 
+
+@api_router.get("/rss.xml")
+async def rss_feed():
+    from fastapi.responses import Response as FastResponse
+    from xml.sax.saxutils import escape
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+    articles = await db.articles.find(
+        build_public_query(),
+        {"_id": 0, "title": 1, "slug": 1, "excerpt": 1, "content": 1, "featured_image": 1,
+         "category_name": 1, "category_slug": 1, "categories": 1,
+         "author_name": 1, "published_at": 1, "tags": 1}
+    ).sort("published_at", -1).limit(50).to_list(50)
+
+    def to_rfc822(iso_str):
+        try:
+            from email.utils import format_datetime
+            dt = datetime.fromisoformat(str(iso_str).replace("Z", "+00:00"))
+            return format_datetime(dt)
+        except Exception:
+            return str(iso_str)
+
+    items_xml = []
+    for a in articles:
+        slug = a.get("slug", "")
+        cat_slug = a.get("category_slug", "news")
+        link = f"{base_url}/{cat_slug}/{slug}"
+        title = escape(a.get("title", ""))
+        desc = escape(a.get("excerpt", ""))
+        author = escape(a.get("author_name", "AxiomFinity"))
+        pub_date = to_rfc822(a.get("published_at", ""))
+        image = a.get("featured_image", "")
+        categories_xml = ""
+        for cat in (a.get("categories") or [a.get("category_slug", "")]):
+            if cat:
+                categories_xml += f"\n      <category>{escape(cat)}</category>"
+
+        image_enclosure = ""
+        if image:
+            image_enclosure = f'\n      <enclosure url="{escape(image)}" type="image/jpeg" length="0" />'
+
+        media_content = ""
+        if image:
+            media_content = f'\n      <media:content url="{escape(image)}" medium="image" />'
+            media_content += f'\n      <media:thumbnail url="{escape(image)}" />'
+
+        items_xml.append(f"""    <item>
+      <title>{title}</title>
+      <link>{link}</link>
+      <guid isPermaLink="true">{link}</guid>
+      <pubDate>{pub_date}</pubDate>
+      <dc:creator>{author}</dc:creator>{categories_xml}
+      <description>{desc}</description>{image_enclosure}{media_content}
+    </item>""")
+
+    rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>AxiomFinity | Crypto &amp; Financial News</title>
+    <link>{base_url}</link>
+    <description>Breaking crypto and financial news, analysis, and market insights from AxiomFinity.</description>
+    <language>en-us</language>
+    <lastBuildDate>{to_rfc822(datetime.now(timezone.utc).isoformat())}</lastBuildDate>
+    <atom:link href="{base_url}/rss.xml" rel="self" type="application/rss+xml" />
+    <image>
+      <url>{base_url}/logo192.png</url>
+      <title>AxiomFinity</title>
+      <link>{base_url}</link>
+    </image>
+{chr(10).join(items_xml)}
+  </channel>
+</rss>"""
+    return FastResponse(content=rss, media_type="application/rss+xml; charset=utf-8")
+
+
 # ─── TEAM MEMBERS ───
 @api_router.get("/team")
 async def get_team_members():

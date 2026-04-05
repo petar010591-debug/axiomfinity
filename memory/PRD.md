@@ -30,8 +30,11 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 
 ### SEO & Analytics
 - XML sitemap, **News sitemap** (Google News format), OG meta tags
+- **RSS 2.0 Feed** (`/rss.xml`) — title, link, pubDate, dc:creator, categories, description, enclosure image, media:content/thumbnail, atom:self, channel image
+- RSS auto-discovery `<link>` tag in HTML `<head>`
+- Nginx proxy for `/sitemap.xml`, `/news-sitemap.xml`, `/rss.xml` to backend
 - **Plausible Analytics** integrated
-- Clean URLs, article scheduling
+- Clean URLs, article scheduling, `robots.txt`
 
 ### Production
 - Cloudinary image storage, Dockerfiles, Railway deployment
@@ -45,7 +48,6 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 - Sitemap redirect: Nginx now uses `envsubst` at startup to redirect `/sitemap.xml` and `/news-sitemap.xml` to the backend API endpoints. Updated `robots.txt` to reference `www.axiomfinity.com/sitemap.xml` (canonical domain).
 
 ## Backlog
-- P1: RSS Feed endpoint (`/api/rss.xml`)
 - P2: CTA buttons in editor, article revision history
 - P2: Google Search Console sitemap proxy fix (deprioritized)
 - P3: Comments, newsletter, analytics dashboard, MFA
