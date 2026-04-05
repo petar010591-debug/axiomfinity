@@ -215,6 +215,16 @@ def build_public_query():
         {"status": "scheduled", "scheduled_at": {"$lte": now}}
     ]}
 
+
+# Auto-promote scheduled articles whose time has passed
+async def auto_promote_scheduled():
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.articles.update_many(
+        {"status": "scheduled", "scheduled_at": {"$lte": now}},
+        {"$set": {"status": "published"}}
+    )
+    return result.modified_count
+
 # ─── PUBLIC ARTICLE ROUTES ───
 @api_router.get("/articles")
 async def get_articles(
@@ -224,6 +234,7 @@ async def get_articles(
     limit: int = Query(12, ge=1, le=50),
     status: Optional[str] = "published"
 ):
+    await auto_promote_scheduled()
     if status == "published":
         query = build_public_query()
     else:
@@ -239,6 +250,7 @@ async def get_articles(
 
 @api_router.get("/articles/featured")
 async def get_featured():
+    await auto_promote_scheduled()
     slots = await db.homepage_slots.find_one({"_id": "config"}, {"_id": 0})
     if not slots:
         articles = await db.articles.find({"status": "published"}).sort("published_at", -1).limit(5).to_list(5)
@@ -401,6 +413,7 @@ async def market_ticker():
 # ─── HOMEPAGE SECTIONS ───
 @api_router.get("/articles/homepage-sections")
 async def get_homepage_sections():
+    await auto_promote_scheduled()
     base_query = build_public_query()
     # Latest (all articles, for hero)
     latest = await db.articles.find(base_query).sort("published_at", -1).limit(5).to_list(5)
@@ -447,6 +460,7 @@ async def get_homepage_sections():
 # ─── ADMIN ROUTES ───
 @api_router.get("/admin/articles")
 async def admin_list_articles(user: dict = Depends(get_current_user), page: int = 1, limit: int = 20, status: Optional[str] = None):
+    await auto_promote_scheduled()
     query = {}
     if status:
         query["status"] = status

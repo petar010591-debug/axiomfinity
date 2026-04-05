@@ -225,16 +225,40 @@ export default function ArticleEditor() {
         {form.status === 'scheduled' && (
           <div className="bg-[#1C2230] border border-[#232B3E] rounded-lg p-4">
             <label className="flex items-center gap-2 text-sm font-medium text-[#D4AF37] mb-2">
-              <Calendar className="w-4 h-4" /> Schedule Publication
+              <Calendar className="w-4 h-4" /> Schedule Publication (CET)
             </label>
             <input
               type="datetime-local"
-              value={form.scheduled_at ? form.scheduled_at.slice(0, 16) : ''}
-              onChange={e => updateField('scheduled_at', e.target.value ? new Date(e.target.value).toISOString() : '')}
+              value={(() => {
+                if (!form.scheduled_at) return '';
+                // Convert stored UTC to CET for display
+                const d = new Date(form.scheduled_at);
+                const cet = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
+                const y = cet.getFullYear();
+                const m = String(cet.getMonth() + 1).padStart(2, '0');
+                const day = String(cet.getDate()).padStart(2, '0');
+                const h = String(cet.getHours()).padStart(2, '0');
+                const min = String(cet.getMinutes()).padStart(2, '0');
+                return `${y}-${m}-${day}T${h}:${min}`;
+              })()}
+              onChange={e => {
+                if (!e.target.value) { updateField('scheduled_at', ''); return; }
+                // Input is in CET — convert to UTC for storage
+                // CET is UTC+1 (or UTC+2 during CEST)
+                const cetStr = e.target.value;
+                // Create date assuming CET by appending the offset
+                // Use Intl to determine current CET offset
+                const tempDate = new Date(cetStr);
+                const utcRef = new Date(tempDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+                const cetRef = new Date(tempDate.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
+                const offsetMs = cetRef - utcRef;
+                const utcDate = new Date(tempDate.getTime() - offsetMs);
+                updateField('scheduled_at', utcDate.toISOString());
+              }}
               className="w-full max-w-xs px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
               data-testid="article-schedule-input"
             />
-            <p className="text-xs text-[#6B7280] mt-2">Article will be automatically published at the scheduled time.</p>
+            <p className="text-xs text-[#6B7280] mt-2">All times in Central European Time (CET). Article will auto-publish at this time.</p>
           </div>
         )}
 
