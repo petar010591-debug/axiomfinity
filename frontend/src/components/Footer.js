@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Rss } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -54,9 +55,15 @@ export default function Footer() {
 
         <div className="mt-10 pt-6 border-t border-[#1A202E] flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-[#6B7280]">&copy; {new Date().getFullYear()} AxiomFinity. All rights reserved.</p>
-          <p className="text-xs text-[#6B7280]">
-            Content is for informational purposes only. Not financial advice.
-          </p>
+          <div className="flex items-center gap-4">
+            <a href="/rss.xml" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#D4AF37] transition-colors" data-testid="footer-rss-link">
+              <Rss className="w-3.5 h-3.5" />
+              RSS Feed
+            </a>
+            <p className="text-xs text-[#6B7280]">
+              Content is for informational purposes only. Not financial advice.
+            </p>
+          </div>
         </div>
       </div>
     </footer>
