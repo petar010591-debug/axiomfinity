@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
 import TipTapEditor from '../../components/TipTapEditor';
+import MediaLibrary from '../../components/MediaLibrary';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -20,6 +21,7 @@ export default function ArticleEditor() {
   const [tagInput, setTagInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -138,9 +140,17 @@ export default function ArticleEditor() {
             <input
               type="text" value={form.featured_image} onChange={e => updateField('featured_image', e.target.value)}
               className="flex-1 px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
-              placeholder="https://... or upload from your PC"
+              placeholder="https://... or upload / choose from library"
               data-testid="article-image-input"
             />
+            <button
+              type="button"
+              onClick={() => setShowMediaLibrary(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium bg-[#1C2230] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37]/10 transition-colors"
+              data-testid="media-library-btn"
+            >
+              <ImageIcon className="w-4 h-4" /> Library
+            </button>
             <label className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${uploading ? 'bg-[#232B3E] text-[#6B7280]' : 'bg-[#D4AF37] text-black hover:bg-[#C39F2F]'}`} data-testid="image-upload-btn">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {uploading ? 'Uploading...' : 'Upload'}
@@ -174,6 +184,14 @@ export default function ArticleEditor() {
             </div>
           )}
         </div>
+
+        {/* Media Library Modal */}
+        {showMediaLibrary && (
+          <MediaLibrary
+            onSelect={(url) => updateField('featured_image', url)}
+            onClose={() => setShowMediaLibrary(false)}
+          />
+        )}
 
         {/* Category + Status row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

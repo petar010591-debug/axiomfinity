@@ -683,10 +683,60 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     filename = f"{uuid.uuid4().hex}.{ext}"
     try:
         url = upload_to_cloudinary(data, filename, file.content_type)
+        # Track in media library
+        await db.media.insert_one({
+            "url": url,
+            "filename": file.filename,
+            "size": len(data),
+            "content_type": file.content_type,
+            "uploaded_by": user.get("email", ""),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
         return {"url": url, "path": filename, "size": len(data)}
     except Exception as e:
         logger.error(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail="Upload failed")
+
+
+@api_router.get("/media")
+async def list_media(q: str = "", page: int = 1, limit: int = 24, user: dict = Depends(get_current_user)):
+    query = {}
+    if q:
+        query["filename"] = {"$regex": q, "$options": "i"}
+    skip = (page - 1) * limit
+    total = await db.media.count_documents(query)
+    items = await db.media.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    return {"items": items, "total": total, "pages": max(1, (total + limit - 1) // limit)}
+
+
+@api_router.post("/media/sync-cloudinary")
+async def sync_cloudinary_media(user: dict = Depends(get_current_user)):
+    """One-time sync: import existing Cloudinary images into the media library."""
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    try:
+        import cloudinary.api
+        result = cloudinary.api.resources(type="upload", prefix="finnews", max_results=500, resource_type="image")
+        imported = 0
+        for r in result.get("resources", []):
+            url = r.get("secure_url", "")
+            if not url:
+                continue
+            exists = await db.media.find_one({"url": url})
+            if not exists:
+                await db.media.insert_one({
+                    "url": url,
+                    "filename": r.get("public_id", "").split("/")[-1] + "." + r.get("format", "jpg"),
+                    "size": r.get("bytes", 0),
+                    "content_type": f"image/{r.get('format', 'jpeg')}",
+                    "uploaded_by": "cloudinary-sync",
+                    "created_at": r.get("created_at", datetime.now(timezone.utc).isoformat()),
+                })
+                imported += 1
+        return {"imported": imported, "total_in_cloudinary": len(result.get("resources", []))}
+    except Exception as e:
+        logger.error(f"Cloudinary sync error: {e}")
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 # ─── AUTHOR PROFILES ───
 @api_router.get("/authors/{author_id}")
