@@ -15,11 +15,17 @@ RUN yarn build
 
 FROM nginx:alpine
 
+# Re-declare ARG so it's available in this stage
+ARG REACT_APP_BACKEND_URL
+
 RUN rm -f /etc/nginx/conf.d/default.conf
 
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf.template
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Replace placeholder with actual backend URL at build time
+RUN sed -i "s|__BACKEND_URL__|${REACT_APP_BACKEND_URL}|g" /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000
 
-CMD ["/bin/sh", "-c", "envsubst '$REACT_APP_BACKEND_URL' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["nginx", "-g", "daemon off;"]
