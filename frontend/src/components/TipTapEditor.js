@@ -44,9 +44,12 @@ function ToolbarDivider() {
 
 export default function TipTapEditor({ content, onChange }) {
   const fileInputRef = useRef(null);
+  const linkInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [showEmbedModal, setShowEmbedModal] = useState(null); // 'youtube' | 'twitter' | 'image-url' | null
   const [embedUrl, setEmbedUrl] = useState('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
 
   const editor = useEditor({
     extensions: [
@@ -81,6 +84,38 @@ export default function TipTapEditor({ content, onChange }) {
       editor.commands.setContent(content);
     }
   }, [content, editor]);
+
+  const openLinkInput = useCallback(() => {
+    if (!editor) return;
+    const existingHref = editor.getAttributes('link').href || '';
+    setLinkUrl(existingHref);
+    setShowLinkInput(true);
+    setTimeout(() => linkInputRef.current?.focus(), 50);
+  }, [editor]);
+
+  const applyLink = () => {
+    if (!editor) return;
+    const url = linkUrl.trim();
+    if (url) {
+      editor.chain().focus().setLink({ href: url }).run();
+    } else {
+      editor.chain().focus().unsetLink().run();
+    }
+    setShowLinkInput(false);
+    setLinkUrl('');
+  };
+
+  // Ctrl+K keyboard shortcut for link input
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        openLinkInput();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [openLinkInput]);
 
   const handleImageUpload = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -183,14 +218,11 @@ export default function TipTapEditor({ content, onChange }) {
 
         <ToolbarDivider />
 
-        {/* Link */}
+        {/* Link (Ctrl+K) */}
         <ToolbarButton
-          onClick={() => {
-            const url = window.prompt('Enter URL');
-            if (url) editor.chain().focus().setLink({ href: url }).run();
-          }}
+          onClick={openLinkInput}
           active={editor.isActive('link')}
-          title="Insert Link"
+          title="Insert Link (Ctrl+K)"
         >
           <LinkIcon className="w-4 h-4" />
         </ToolbarButton>
@@ -272,6 +304,38 @@ export default function TipTapEditor({ content, onChange }) {
           <button type="button" onClick={() => { setShowEmbedModal(null); setEmbedUrl(''); }} className="p-1 text-[#6B7280] hover:text-[#F3F4F6]">
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Inline Link Input (Ctrl+K) */}
+      {showLinkInput && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#1C2230] border-b border-[#232B3E]" data-testid="link-input-bar">
+          <LinkIcon className="w-3.5 h-3.5 text-[#D4AF37] flex-shrink-0" />
+          <input
+            ref={linkInputRef}
+            type="text"
+            value={linkUrl}
+            onChange={e => setLinkUrl(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+              if (e.key === 'Escape') { setShowLinkInput(false); setLinkUrl(''); editor?.chain().focus().run(); }
+            }}
+            placeholder="Paste or type URL..."
+            className="flex-1 px-2 py-1 text-sm bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] focus:outline-none focus:border-[#D4AF37]"
+            data-testid="link-url-input"
+          />
+          <button type="button" onClick={applyLink} className="px-3 py-1 text-xs bg-[#D4AF37] text-black rounded font-medium hover:bg-[#C39F2F]" data-testid="link-apply-btn">
+            Apply
+          </button>
+          {editor?.isActive('link') && (
+            <button type="button" onClick={() => { editor.chain().focus().unsetLink().run(); setShowLinkInput(false); setLinkUrl(''); }} className="px-2 py-1 text-xs text-[#EF4444] bg-[#0A0D14] rounded hover:bg-[#EF4444]/10" data-testid="link-remove-btn">
+              Remove
+            </button>
+          )}
+          <button type="button" onClick={() => { setShowLinkInput(false); setLinkUrl(''); editor?.chain().focus().run(); }} className="p-1 text-[#6B7280] hover:text-[#F3F4F6]">
+            <X className="w-4 h-4" />
+          </button>
+          <span className="text-[10px] text-[#6B7280] hidden sm:inline">Ctrl+K</span>
         </div>
       )}
 

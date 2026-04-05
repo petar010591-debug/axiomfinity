@@ -17,6 +17,8 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 ### Admin CMS
 - Articles CRUD with TipTap WYSIWYG editor + image upload (Cloudinary)
 - **TipTap content loads correctly when editing existing articles** (async content sync fix)
+- **Ctrl+K inline link input** in TipTap editor (also accessible via toolbar link button)
+- **Exact publish timestamps** (date + time) in admin articles list
 - Categories & Tags management
 - **Pages editor** (Privacy Policy, Terms, Financial Disclaimer, About, Education pages)
 - **Homepage section reordering** (move sections up/down)
