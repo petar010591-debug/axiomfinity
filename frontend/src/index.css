@@ -146,6 +146,17 @@ a {
   font-weight: 600;
 }
 
+.article-content a {
+  color: #D4AF37;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.article-content a:hover {
+  color: #C39F2F;
+}
+
 .article-content ul, .article-content ol {
   margin-bottom: 1rem;
   padding-left: 1.5rem;

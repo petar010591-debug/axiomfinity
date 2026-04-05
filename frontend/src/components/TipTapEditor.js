@@ -147,9 +147,11 @@ export default function TipTapEditor({ content, onChange }) {
     if (showEmbedModal === 'youtube') {
       editor.chain().focus().setYoutubeVideo({ src: embedUrl.trim() }).run();
     } else if (showEmbedModal === 'twitter') {
-      // Insert Twitter embed as custom HTML
+      // Insert standard Twitter embed blockquote that widgets.js can render
       const tweetId = embedUrl.match(/status\/(\d+)/)?.[1] || embedUrl.trim();
-      const html = `<div data-twitter-embed="${tweetId}" class="twitter-embed"><blockquote><p>Loading tweet...</p><a href="https://twitter.com/i/status/${tweetId}" target="_blank">View tweet</a></blockquote></div>`;
+      const tweetUrl = `https://twitter.com/i/status/${tweetId}`;
+      const html = `<blockquote class="twitter-tweet" data-twitter-embed="${tweetId}"><a href="${tweetUrl}">Loading tweet...</a></blockquote>`;
+      editor.chain().focus().insertContent(html).run();
       editor.chain().focus().insertContent(html).run();
     } else if (showEmbedModal === 'image-url') {
       editor.chain().focus().setImage({ src: embedUrl.trim() }).run();

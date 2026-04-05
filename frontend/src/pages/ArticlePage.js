@@ -38,15 +38,44 @@ export default function ArticlePage() {
     window.scrollTo(0, 0);
   }, [slug]);
 
-  // Load Twitter widget for embeds
+  // Load Twitter widget for embeds (handles both data-twitter-embed and class="twitter-tweet")
   useEffect(() => {
-    if (article?.content?.includes('data-twitter-embed')) {
-      const script = document.createElement('script');
-      script.src = 'https://platform.twitter.com/widgets.js';
-      script.async = true;
-      document.body.appendChild(script);
-      return () => { try { document.body.removeChild(script); } catch {} };
+    if (!article?.content) return;
+    if (!article.content.includes('twitter-tweet') && !article.content.includes('data-twitter-embed') && !article.content.includes('twitter.com')) return;
+
+    // Convert old-format twitter embeds to standard format for widgets.js
+    const contentEl = document.querySelector('[data-testid="article-content"]');
+    if (contentEl) {
+      contentEl.querySelectorAll('[data-twitter-embed]').forEach(el => {
+        const tweetId = el.getAttribute('data-twitter-embed');
+        if (tweetId && !el.classList.contains('twitter-tweet')) {
+          const blockquote = document.createElement('blockquote');
+          blockquote.className = 'twitter-tweet';
+          blockquote.setAttribute('data-twitter-embed', tweetId);
+          const link = document.createElement('a');
+          link.href = `https://twitter.com/i/status/${tweetId}`;
+          link.textContent = 'Loading tweet...';
+          blockquote.appendChild(link);
+          el.replaceWith(blockquote);
+        }
+      });
     }
+
+    const timer = setTimeout(() => {
+      if (window.twttr?.widgets) {
+        window.twttr.widgets.load();
+      } else {
+        const existing = document.querySelector('script[src*="platform.twitter.com/widgets.js"]');
+        if (!existing) {
+          const script = document.createElement('script');
+          script.src = 'https://platform.twitter.com/widgets.js';
+          script.async = true;
+          script.charset = 'utf-8';
+          document.body.appendChild(script);
+        }
+      }
+    }, 200);
+    return () => clearTimeout(timer);
   }, [article]);
 
   if (loading) {
@@ -170,7 +199,7 @@ export default function ArticlePage() {
         )}
 
         {/* Content */}
-        <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_TAGS: ['iframe', 'blockquote'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'data-twitter-embed', 'target'] }) }} />
+        <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_TAGS: ['iframe', 'blockquote'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'data-twitter-embed', 'target', 'rel', 'href', 'class'] }) }} />
 
         {/* Tags */}
         {article.tags?.length > 0 && (
