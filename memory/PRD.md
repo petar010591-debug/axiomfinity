@@ -38,6 +38,9 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 ## Pending
 - Cloudinary credentials on Railway (image uploads won't work without them)
 
+## Recently Fixed
+- Sitemap redirect: Nginx now uses `envsubst` at startup to redirect `/sitemap.xml` and `/news-sitemap.xml` to the backend API endpoints. Updated `robots.txt` to reference `www.axiomfinity.com/sitemap.xml` (canonical domain).
+
 ## Backlog
 - P1: RSS Feed endpoint (`/api/rss.xml`)
 - P2: CTA buttons in editor, article revision history
