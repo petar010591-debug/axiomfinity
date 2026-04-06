@@ -30,6 +30,7 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 
 ### SEO & Analytics
 - XML sitemap, **News sitemap** (Google News format), OG meta tags
+- **Dynamic OG meta tags** for social crawlers (X, Facebook, CMC) — Nginx detects bot user-agents and proxies to backend's `/api/og/{category}/{slug}` endpoint serving server-rendered HTML with og:title, og:description, og:image, twitter:card, canonical URL
 - **RSS 2.0 Feed** (`/rss.xml`) — title, link, pubDate, dc:creator, categories, description, enclosure image, media:content/thumbnail, atom:self, channel image
 - RSS auto-discovery `<link>` tag in HTML `<head>`
 - Nginx proxy for `/sitemap.xml`, `/news-sitemap.xml`, `/rss.xml` to backend

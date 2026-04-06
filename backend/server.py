@@ -839,6 +839,53 @@ async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)
     await db.users.delete_one({"_id": ObjectId(user_id)})
     return {"message": "User deleted"}
 
+# ─── OG META FOR SOCIAL CRAWLERS ───
+@api_router.get("/og/{category_slug}/{article_slug}")
+async def og_meta_page(category_slug: str, article_slug: str):
+    """Serve HTML with dynamic OG meta tags for social crawlers (X, Facebook, CMC, etc.)."""
+    from fastapi.responses import HTMLResponse
+    from html import escape
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+    article = await db.articles.find_one(
+        {"slug": article_slug, **build_public_query()},
+        {"_id": 0, "title": 1, "excerpt": 1, "featured_image": 1, "og_image": 1,
+         "meta_title": 1, "meta_description": 1, "category_slug": 1, "author_name": 1, "published_at": 1}
+    )
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    title = escape(article.get("meta_title") or article.get("title", "AxiomFinity"))
+    description = escape(article.get("meta_description") or article.get("excerpt", ""))
+    image = article.get("og_image") or article.get("featured_image", f"{base_url}/logo192.png")
+    canonical = f"{base_url}/{article.get('category_slug', category_slug)}/{article_slug}"
+    author = escape(article.get("author_name", "AxiomFinity"))
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>{title} | AxiomFinity</title>
+<meta name="description" content="{description}"/>
+<meta property="og:type" content="article"/>
+<meta property="og:title" content="{title}"/>
+<meta property="og:description" content="{description}"/>
+<meta property="og:image" content="{escape(image)}"/>
+<meta property="og:url" content="{canonical}"/>
+<meta property="og:site_name" content="AxiomFinity"/>
+<meta property="article:author" content="{author}"/>
+<meta property="article:published_time" content="{article.get('published_at', '')}"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="{title}"/>
+<meta name="twitter:description" content="{description}"/>
+<meta name="twitter:image" content="{escape(image)}"/>
+<link rel="canonical" href="{canonical}"/>
+<meta http-equiv="refresh" content="0;url={canonical}"/>
+</head>
+<body><p>Redirecting to <a href="{canonical}">{title}</a>...</p></body>
+</html>"""
+    return HTMLResponse(content=html)
+
+
 # ─── XML SITEMAP ───
 @api_router.get("/sitemap.xml")
 async def sitemap():

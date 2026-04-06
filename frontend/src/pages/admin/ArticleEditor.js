@@ -231,28 +231,33 @@ export default function ArticleEditor() {
               type="datetime-local"
               value={(() => {
                 if (!form.scheduled_at) return '';
-                // Convert stored UTC to CET for display
+                // Convert stored UTC ISO to CET display string
                 const d = new Date(form.scheduled_at);
-                const cet = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-                const y = cet.getFullYear();
-                const m = String(cet.getMonth() + 1).padStart(2, '0');
-                const day = String(cet.getDate()).padStart(2, '0');
-                const h = String(cet.getHours()).padStart(2, '0');
-                const min = String(cet.getMinutes()).padStart(2, '0');
-                return `${y}-${m}-${day}T${h}:${min}`;
+                // Format directly in CET timezone
+                const parts = new Intl.DateTimeFormat('en-CA', {
+                  timeZone: 'Europe/Berlin',
+                  year: 'numeric', month: '2-digit', day: '2-digit',
+                  hour: '2-digit', minute: '2-digit', hour12: false,
+                }).formatToParts(d);
+                const get = (type) => parts.find(p => p.type === type)?.value || '00';
+                return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
               })()}
               onChange={e => {
                 if (!e.target.value) { updateField('scheduled_at', ''); return; }
-                // Input is in CET — convert to UTC for storage
-                // CET is UTC+1 (or UTC+2 during CEST)
-                const cetStr = e.target.value;
-                // Create date assuming CET by appending the offset
-                // Use Intl to determine current CET offset
-                const tempDate = new Date(cetStr);
-                const utcRef = new Date(tempDate.toLocaleString('en-US', { timeZone: 'UTC' }));
-                const cetRef = new Date(tempDate.toLocaleString('en-US', { timeZone: 'Europe/Berlin' }));
-                const offsetMs = cetRef - utcRef;
-                const utcDate = new Date(tempDate.getTime() - offsetMs);
+                // User picked a CET datetime — convert to UTC for storage
+                // Parse the local input value as raw numbers
+                const [datePart, timePart] = e.target.value.split('T');
+                const [year, month, day] = datePart.split('-').map(Number);
+                const [hour, minute] = timePart.split(':').map(Number);
+                // Build a UTC date, then subtract the CET offset
+                // First, find the CET offset for this specific date
+                const approxUtc = new Date(Date.UTC(year, month - 1, day, hour, minute));
+                // Get what CET shows for this UTC moment
+                const cetStr = approxUtc.toLocaleString('en-US', { timeZone: 'Europe/Berlin' });
+                const utcStr = approxUtc.toLocaleString('en-US', { timeZone: 'UTC' });
+                const offsetMs = new Date(cetStr) - new Date(utcStr);
+                // The user's input IS in CET, so subtract the offset to get UTC
+                const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute) - offsetMs);
                 updateField('scheduled_at', utcDate.toISOString());
               }}
               className="w-full max-w-xs px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
