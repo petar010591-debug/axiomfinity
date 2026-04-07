@@ -849,7 +849,8 @@ async def og_meta_page(category_slug: str, article_slug: str):
     article = await db.articles.find_one(
         {"slug": article_slug, **build_public_query()},
         {"_id": 0, "title": 1, "excerpt": 1, "featured_image": 1, "og_image": 1,
-         "meta_title": 1, "meta_description": 1, "category_slug": 1, "author_name": 1, "published_at": 1}
+         "meta_title": 1, "meta_description": 1, "category_slug": 1, "author_name": 1,
+         "published_at": 1, "updated_at": 1, "slug": 1}
     )
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -859,6 +860,8 @@ async def og_meta_page(category_slug: str, article_slug: str):
     image = article.get("og_image") or article.get("featured_image", f"{base_url}/logo192.png")
     canonical = f"{base_url}/{article.get('category_slug', category_slug)}/{article_slug}"
     author = escape(article.get("author_name", "AxiomFinity"))
+    published_at = article.get("published_at", "")
+    modified_at = article.get("updated_at", published_at)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -873,12 +876,16 @@ async def og_meta_page(category_slug: str, article_slug: str):
 <meta property="og:url" content="{canonical}"/>
 <meta property="og:site_name" content="AxiomFinity"/>
 <meta property="article:author" content="{author}"/>
-<meta property="article:published_time" content="{article.get('published_at', '')}"/>
+<meta property="article:published_time" content="{published_at}"/>
+<meta property="article:modified_time" content="{modified_at}"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="{title}"/>
 <meta name="twitter:description" content="{description}"/>
 <meta name="twitter:image" content="{escape(image)}"/>
 <link rel="canonical" href="{canonical}"/>
+<script type="application/ld+json">
+{{"@context":"https://schema.org","@type":"NewsArticle","headline":"{title}","description":"{description}","image":["{escape(image)}"],"datePublished":"{published_at}","dateModified":"{modified_at}","author":{{"@type":"Person","name":"{author}"}},"publisher":{{"@type":"Organization","name":"AxiomFinity","logo":{{"@type":"ImageObject","url":"{base_url}/logo192.png"}}}},"mainEntityOfPage":{{"@type":"WebPage","@id":"{canonical}"}}}}
+</script>
 <meta http-equiv="refresh" content="0;url={canonical}"/>
 </head>
 <body><p>Redirecting to <a href="{canonical}">{title}</a>...</p></body>

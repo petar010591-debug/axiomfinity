@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import { Helmet } from 'react-helmet-async';
-import { Clock, User, ArrowLeft, Share2, Tag } from 'lucide-react';
+import { Clock, User, ArrowLeft, Share2, Tag, RefreshCw } from 'lucide-react';
 import { ArticleCardSecondary } from '../components/ArticleCard';
 import { motion } from 'framer-motion';
 
@@ -180,6 +180,11 @@ export default function ArticlePage() {
                 </Link>
               )}
               <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {formatDate(article.published_at)}</span>
+              {article.updated_at && article.published_at && new Date(article.updated_at).getTime() - new Date(article.published_at).getTime() > 60000 && (
+                <span className="flex items-center gap-1 text-[#D4AF37]">
+                  <RefreshCw className="w-3 h-3" /> Updated: {formatDate(article.updated_at)}
+                </span>
+              )}
             </div>
             <button
               onClick={() => navigator.clipboard?.writeText(shareUrl)}
@@ -200,6 +205,20 @@ export default function ArticlePage() {
 
         {/* Content */}
         <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_TAGS: ['iframe', 'blockquote'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'data-twitter-embed', 'target', 'rel', 'href', 'class'] }) }} />
+
+        {/* JSON-LD Structured Data */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "NewsArticle",
+          "headline": article.title,
+          "description": article.excerpt,
+          "image": article.featured_image ? [article.featured_image] : [],
+          "datePublished": article.published_at,
+          "dateModified": article.updated_at || article.published_at,
+          "author": { "@type": "Person", "name": article.author_name || "AxiomFinity" },
+          "publisher": { "@type": "Organization", "name": "AxiomFinity", "logo": { "@type": "ImageObject", "url": "https://www.axiomfinity.com/logo192.png" } },
+          "mainEntityOfPage": { "@type": "WebPage", "@id": `https://www.axiomfinity.com/${article.category_slug}/${article.slug}` }
+        }) }} />
 
         {/* Tags */}
         {article.tags?.length > 0 && (
