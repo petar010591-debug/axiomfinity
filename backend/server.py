@@ -1005,6 +1005,99 @@ async def rss_feed():
     return FastResponse(content=rss, media_type="application/rss+xml; charset=utf-8")
 
 
+@api_router.get("/rss/quality.xml")
+async def rss_quality_feed():
+    """Editorial-only RSS feed for syndication partners (CoinStats, etc.). Excludes sponsored, press releases, and low-quality content."""
+    from fastapi.responses import Response as FastResponse
+    from xml.sax.saxutils import escape
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+
+    ALLOWED_PRIMARY = {"crypto", "analysis", "markets"}
+    EXCLUDED_SLUGS = {"press-releases", "sponsored", "press-release"}
+    EXCLUDED_TAGS = {"sponsored", "press release", "press-release", "press releases", "pr"}
+
+    await auto_promote_scheduled()
+    all_articles = await db.articles.find(
+        build_public_query(),
+        {"_id": 0, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1,
+         "category_slug": 1, "categories": 1, "is_sponsored": 1,
+         "author_name": 1, "published_at": 1, "tags": 1}
+    ).sort("published_at", -1).limit(200).to_list(200)
+
+    def to_rfc822(iso_str):
+        try:
+            from email.utils import format_datetime
+            dt = datetime.fromisoformat(str(iso_str).replace("Z", "+00:00"))
+            return format_datetime(dt)
+        except Exception:
+            return str(iso_str)
+
+    items_xml = []
+    for a in all_articles:
+        if len(items_xml) >= 50:
+            break
+        # Primary category must be in allowed list
+        primary = (a.get("category_slug") or "").lower()
+        if primary not in ALLOWED_PRIMARY:
+            continue
+        # Exclude sponsored articles
+        if a.get("is_sponsored"):
+            continue
+        # Exclude if any category is press-releases or sponsored
+        cats = [c.lower() for c in (a.get("categories") or [])]
+        if EXCLUDED_SLUGS & set(cats):
+            continue
+        # Exclude if any tag matches
+        tags = [t.lower().strip() for t in (a.get("tags") or [])]
+        if EXCLUDED_TAGS & set(tags):
+            continue
+        # Exclude articles with very short excerpts (likely test content)
+        if len(a.get("excerpt", "")) < 20:
+            continue
+
+        slug = a.get("slug", "")
+        link = f"{base_url}/{primary}/{slug}"
+        title = escape(a.get("title", ""))
+        desc = escape(a.get("excerpt", ""))
+        pub_date = to_rfc822(a.get("published_at", ""))
+        image = a.get("featured_image", "")
+
+        image_tags = ""
+        if image:
+            image_tags = f'\n      <enclosure url="{escape(image)}" type="image/jpeg" length="0" />'
+            image_tags += f'\n      <media:content url="{escape(image)}" medium="image" />'
+            image_tags += f'\n      <media:thumbnail url="{escape(image)}" />'
+
+        items_xml.append(f"""    <item>
+      <title>{title}</title>
+      <link>{link}</link>
+      <guid isPermaLink="true">{link}</guid>
+      <pubDate>{pub_date}</pubDate>
+      <description>{desc}</description>{image_tags}
+    </item>""")
+
+    rss = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>AxiomFinity | Editorial Crypto &amp; Market News</title>
+    <link>{base_url}</link>
+    <description>Curated editorial crypto and market analysis from AxiomFinity. No sponsored or press release content.</description>
+    <language>en-us</language>
+    <lastBuildDate>{to_rfc822(datetime.now(timezone.utc).isoformat())}</lastBuildDate>
+    <atom:link href="{base_url}/rss/quality.xml" rel="self" type="application/rss+xml" />
+    <image>
+      <url>{base_url}/logo192.png</url>
+      <title>AxiomFinity</title>
+      <link>{base_url}</link>
+    </image>
+{chr(10).join(items_xml)}
+  </channel>
+</rss>"""
+    return FastResponse(content=rss, media_type="application/rss+xml; charset=utf-8")
+
+
 # ─── TEAM MEMBERS ───
 @api_router.get("/team")
 async def get_team_members():
