@@ -1022,7 +1022,7 @@ async def rss_quality_feed():
         {"_id": 0, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1,
          "category_slug": 1, "categories": 1, "is_sponsored": 1,
          "author_name": 1, "published_at": 1, "tags": 1}
-    ).sort("published_at", -1).limit(200).to_list(200)
+    ).sort("published_at", -1).to_list(5000)
 
     def to_rfc822(iso_str):
         try:
@@ -1034,8 +1034,6 @@ async def rss_quality_feed():
 
     items_xml = []
     for a in all_articles:
-        if len(items_xml) >= 50:
-            break
         # Primary category must be in allowed list
         primary = (a.get("category_slug") or "").lower()
         if primary not in ALLOWED_PRIMARY:
