@@ -126,7 +126,11 @@ export default function ArticlesList() {
                     </td>
                     <td className="px-4 py-3">{statusBadge(article.status)}</td>
                     <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-xs text-[#6B7280]">{formatDate(article.published_at || article.created_at)}</span>
+                      <span className="text-xs text-[#6B7280]">
+                        {article.status === 'scheduled' && article.scheduled_at
+                          ? formatDate(article.scheduled_at)
+                          : formatDate(article.published_at || article.created_at)}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
