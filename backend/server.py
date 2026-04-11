@@ -141,6 +141,7 @@ class ArticleCreate(BaseModel):
     meta_description: Optional[str] = ""
     scheduled_at: Optional[str] = None
     og_image: Optional[str] = ""
+    faqs: List[dict] = []  # [{question: str, answer: str}, ...]
 
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -518,6 +519,7 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         "og_image": data.og_image or data.featured_image,
         "meta_title": data.meta_title or data.title,
         "meta_description": data.meta_description or data.excerpt,
+        "faqs": data.faqs,
         "created_at": now,
         "updated_at": now,
     }
@@ -563,6 +565,7 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         "og_image": data.og_image or data.featured_image,
         "meta_title": data.meta_title or data.title,
         "meta_description": data.meta_description or data.excerpt,
+        "faqs": data.faqs,
         "updated_at": now,
     }
     if data.status == "published" and existing.get("status") != "published":

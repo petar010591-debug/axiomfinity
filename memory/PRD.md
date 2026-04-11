@@ -50,5 +50,6 @@ React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy 
 
 ## Backlog
 - P2: CTA buttons in editor, article revision history
-- P2: Google Search Console sitemap proxy fix (deprioritized)
+- P2: Category page FAQs (add curated FAQ sections to /crypto, /markets, etc.)
+- P2: Topic authority pages (/topics/xrp-news, /topics/bitcoin-price-prediction)
 - P3: Comments, newsletter, analytics dashboard, MFA

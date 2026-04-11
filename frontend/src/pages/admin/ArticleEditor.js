@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2, Image as ImageIcon, Plus, Trash2, HelpCircle } from 'lucide-react';
 import TipTapEditor from '../../components/TipTapEditor';
 import MediaLibrary from '../../components/MediaLibrary';
 
@@ -14,7 +14,7 @@ export default function ArticleEditor() {
   const isEditing = !!id;
 
   const [form, setForm] = useState({
-    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: ''
+    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: '', faqs: []
   });
   const [categories, setCategories] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -51,6 +51,7 @@ export default function ArticleEditor() {
             meta_description: data.meta_description || '',
             scheduled_at: data.scheduled_at || '',
             og_image: data.og_image || '',
+            faqs: data.faqs || [],
           });
         }
       } catch {}
@@ -351,6 +352,69 @@ export default function ArticleEditor() {
             </div>
           </div>
         </details>
+
+        {/* FAQs */}
+        <div className="border border-[#232B3E] rounded-lg p-4" data-testid="faq-editor-section">
+          <div className="flex items-center justify-between mb-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-[#9CA3AF]">
+              <HelpCircle className="w-4 h-4 text-[#D4AF37]" /> FAQs <span className="text-[10px] text-[#6B7280]">({form.faqs.length} items)</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => updateField('faqs', [...form.faqs, { question: '', answer: '' }])}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-[#1C2230] text-[#D4AF37] border border-[#D4AF37]/30 rounded-lg hover:bg-[#D4AF37]/10 transition-colors"
+              data-testid="faq-add-btn"
+            >
+              <Plus className="w-3 h-3" /> Add Q&A
+            </button>
+          </div>
+          {form.faqs.length === 0 && (
+            <p className="text-xs text-[#6B7280] text-center py-3">No FAQs yet. Add Q&A pairs for rich results in search.</p>
+          )}
+          <div className="space-y-3">
+            {form.faqs.map((faq, i) => (
+              <div key={i} className="bg-[#0A0D14] border border-[#1A202E] rounded-lg p-3" data-testid={`faq-editor-item-${i}`}>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs text-[#D4AF37] font-bold mt-2 flex-shrink-0">{i + 1}.</span>
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="text"
+                      value={faq.question}
+                      onChange={e => {
+                        const updated = [...form.faqs];
+                        updated[i] = { ...updated[i], question: e.target.value };
+                        updateField('faqs', updated);
+                      }}
+                      placeholder="Question"
+                      className="w-full px-3 py-2 bg-[#121620] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
+                      data-testid={`faq-question-${i}`}
+                    />
+                    <textarea
+                      rows={2}
+                      value={faq.answer}
+                      onChange={e => {
+                        const updated = [...form.faqs];
+                        updated[i] = { ...updated[i], answer: e.target.value };
+                        updateField('faqs', updated);
+                      }}
+                      placeholder="Answer"
+                      className="w-full px-3 py-2 bg-[#121620] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none"
+                      data-testid={`faq-answer-${i}`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateField('faqs', form.faqs.filter((_, j) => j !== i))}
+                    className="p-1.5 text-[#6B7280] hover:text-[#EF4444] transition-colors flex-shrink-0 mt-1"
+                    data-testid={`faq-remove-${i}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Submit */}
         <div className="flex items-center gap-3 pt-2">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import FaqAccordion from '../components/FaqAccordion';
 import DOMPurify from 'dompurify';
 import { Helmet } from 'react-helmet-async';
 import { Clock, User, ArrowLeft, Share2, Tag, RefreshCw } from 'lucide-react';
@@ -219,6 +220,9 @@ export default function ArticlePage() {
           "publisher": { "@type": "Organization", "name": "AxiomFinity", "logo": { "@type": "ImageObject", "url": "https://www.axiomfinity.com/logo192.png" } },
           "mainEntityOfPage": { "@type": "WebPage", "@id": `https://www.axiomfinity.com/${article.category_slug}/${article.slug}` }
         }) }} />
+
+        {/* FAQs */}
+        <FaqAccordion faqs={article.faqs} />
 
         {/* Tags */}
         {article.tags?.length > 0 && (
