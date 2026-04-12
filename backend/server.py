@@ -210,7 +210,7 @@ async def get_me(user: dict = Depends(get_current_user)):
 
 # Helper to build public article query (handles scheduled)
 def build_public_query():
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     return {"$or": [
         {"status": "published"},
         {"status": "scheduled", "scheduled_at": {"$lte": now}}
@@ -219,12 +219,26 @@ def build_public_query():
 
 # Auto-promote scheduled articles whose time has passed
 async def auto_promote_scheduled():
-    now = datetime.now(timezone.utc).isoformat()
-    result = await db.articles.update_many(
-        {"status": "scheduled", "scheduled_at": {"$lte": now}},
-        {"$set": {"status": "published"}}
-    )
-    return result.modified_count
+    now = datetime.now(timezone.utc)
+    # Find all scheduled articles
+    scheduled = await db.articles.find(
+        {"status": "scheduled", "scheduled_at": {"$exists": True, "$ne": ""}},
+        {"_id": 1, "scheduled_at": 1}
+    ).to_list(500)
+    promoted = 0
+    for art in scheduled:
+        try:
+            sched_str = str(art["scheduled_at"]).replace("Z", "+00:00")
+            sched_dt = datetime.fromisoformat(sched_str)
+            if sched_dt <= now:
+                await db.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"status": "published", "published_at": art["scheduled_at"]}}
+                )
+                promoted += 1
+        except Exception:
+            continue
+    return promoted
 
 # ─── PUBLIC ARTICLE ROUTES ───
 @api_router.get("/articles")
