@@ -220,7 +220,25 @@ def build_public_query():
 # Auto-promote scheduled articles whose time has passed
 async def auto_promote_scheduled():
     now = datetime.now(timezone.utc)
-    # Find all scheduled articles
+    # 1. Revert incorrectly promoted articles (scheduled_at in the future but status=published with no real publish)
+    future_scheduled = await db.articles.find(
+        {"scheduled_at": {"$exists": True, "$ne": ""}, "status": "published"},
+        {"_id": 1, "scheduled_at": 1, "published_at": 1}
+    ).to_list(500)
+    for art in future_scheduled:
+        try:
+            sched_str = str(art["scheduled_at"]).replace("Z", "+00:00")
+            sched_dt = datetime.fromisoformat(sched_str)
+            pub_at = art.get("published_at")
+            # If scheduled_at is in the future AND published_at matches scheduled_at (set by old buggy code), revert
+            if sched_dt > now and pub_at and str(pub_at) == str(art["scheduled_at"]):
+                await db.articles.update_one(
+                    {"_id": art["_id"]},
+                    {"$set": {"status": "scheduled", "published_at": None}}
+                )
+        except Exception:
+            continue
+    # 2. Promote scheduled articles whose time has passed
     scheduled = await db.articles.find(
         {"status": "scheduled", "scheduled_at": {"$exists": True, "$ne": ""}},
         {"_id": 1, "scheduled_at": 1}
