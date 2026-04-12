@@ -584,8 +584,8 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
     }
     if data.status == "published" and existing.get("status") != "published":
         update["published_at"] = now
-    if data.status == "scheduled" and data.scheduled_at:
-        update["published_at"] = data.scheduled_at
+    if data.status == "scheduled":
+        update["published_at"] = None
     # Update slug only if title changed
     if data.title != existing.get("title"):
         new_slug = slugify(data.title)
