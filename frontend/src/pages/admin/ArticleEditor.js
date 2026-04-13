@@ -14,7 +14,7 @@ export default function ArticleEditor() {
   const isEditing = !!id;
 
   const [form, setForm] = useState({
-    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: '', faqs: []
+    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: '', faqs: [], custom_slug: ''
   });
   const [categories, setCategories] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -52,6 +52,7 @@ export default function ArticleEditor() {
             scheduled_at: data.scheduled_at || '',
             og_image: data.og_image || '',
             faqs: data.faqs || [],
+            custom_slug: data.slug || '',
           });
         }
       } catch {}
@@ -338,6 +339,14 @@ export default function ArticleEditor() {
         <details className="border border-[#232B3E] rounded-lg">
           <summary className="px-4 py-3 text-sm font-medium text-[#9CA3AF] cursor-pointer hover:text-[#F3F4F6]">SEO Settings</summary>
           <div className="px-4 pb-4 space-y-3">
+            <div>
+              <label className="block text-xs text-[#6B7280] mb-1">Custom Permalink (slug)</label>
+              <div className="flex items-center gap-0">
+                <span className="px-3 py-2 bg-[#0A0D14] border border-r-0 border-[#232B3E] rounded-l text-[#6B7280] text-xs">/{form.category_id ? '...' : 'category'}/</span>
+                <input type="text" value={form.custom_slug} onChange={e => updateField('custom_slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'))} placeholder="auto-generated-from-title" className="flex-1 px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-r text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]" data-testid="custom-slug-input" />
+              </div>
+              <p className="text-[10px] text-[#6B7280] mt-1">Leave empty to auto-generate from title. Use lowercase letters, numbers, and hyphens only.</p>
+            </div>
             <div>
               <label className="block text-xs text-[#6B7280] mb-1">Meta Title</label>
               <input type="text" value={form.meta_title} onChange={e => updateField('meta_title', e.target.value)} className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]" />

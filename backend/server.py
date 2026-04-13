@@ -142,6 +142,7 @@ class ArticleCreate(BaseModel):
     scheduled_at: Optional[str] = None
     og_image: Optional[str] = ""
     faqs: List[dict] = []  # [{question: str, answer: str}, ...]
+    custom_slug: Optional[str] = ""
 
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -511,7 +512,7 @@ async def admin_get_article(article_id: str, user: dict = Depends(get_current_us
 
 @api_router.post("/admin/articles", status_code=201)
 async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_current_user)):
-    slug = slugify(data.title)
+    slug = data.custom_slug.strip().lower().replace(" ", "-") if data.custom_slug and data.custom_slug.strip() else slugify(data.title)
     existing = await db.articles.find_one({"slug": slug})
     if existing:
         # Find a unique slug by appending -2, -3, etc.
@@ -609,7 +610,17 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
     if data.status == "scheduled":
         update["published_at"] = None
     # Update slug only if title changed
-    if data.title != existing.get("title"):
+    if data.custom_slug and data.custom_slug.strip():
+        new_slug = data.custom_slug.strip().lower().replace(" ", "-")
+        if new_slug != existing.get("slug"):
+            dup = await db.articles.find_one({"slug": new_slug, "_id": {"$ne": ObjectId(article_id)}})
+            if dup:
+                counter = 2
+                while await db.articles.find_one({"slug": f"{new_slug}-{counter}", "_id": {"$ne": ObjectId(article_id)}}):
+                    counter += 1
+                new_slug = f"{new_slug}-{counter}"
+            update["slug"] = new_slug
+    elif data.title != existing.get("title"):
         new_slug = slugify(data.title)
         dup = await db.articles.find_one({"slug": new_slug, "_id": {"$ne": ObjectId(article_id)}})
         if dup:
