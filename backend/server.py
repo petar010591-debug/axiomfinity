@@ -1459,6 +1459,12 @@ SAMPLE_PAGES = [
         "page_type": "about",
         "content": "<h2>About Our Mission</h2><p>We are a team of financial journalists, analysts, and blockchain enthusiasts dedicated to providing clear, accurate, and timely information about the rapidly evolving world of digital finance.</p><h2>What We Do</h2><p>Our editorial team covers the latest developments in cryptocurrency, decentralized finance, blockchain technology, and traditional financial markets. We believe in providing balanced, well-researched reporting that helps our readers make informed decisions.</p><h2>Our Values</h2><p><strong>Accuracy:</strong> We verify our information through multiple sources.</p><p><strong>Independence:</strong> Our editorial content is independent of advertisers and sponsors.</p><p><strong>Transparency:</strong> Sponsored content is always clearly labeled.</p><p><strong>Accessibility:</strong> We make complex financial topics understandable for everyone.</p>",
     },
+    {
+        "title": "Contact",
+        "slug": "contact",
+        "page_type": "about",
+        "content": "<h2>Get in Touch</h2><p>Have questions, feedback, or business inquiries? We'd love to hear from you. Reach out to us and we'll get back to you as soon as possible.</p><h2>How to Reach Us</h2><p>For all inquiries, please email us directly. Whether you have a story tip, partnership proposal, advertising question, or general feedback, we're here to help.</p><h2>Business Inquiries</h2><p>For partnership opportunities, sponsored content, and advertising, please include details about your proposal in your email. We typically respond within 1-2 business days.</p>",
+    },
 ]
 
 async def seed_admin():
@@ -1534,6 +1540,19 @@ async def seed_data():
             page["updated_at"] = now
             await db.pages.insert_one(page)
         logger.info("Pages seeded")
+    else:
+        # Ensure contact page exists in existing databases
+        if not await db.pages.find_one({"slug": "contact"}):
+            now = datetime.now(timezone.utc).isoformat()
+            await db.pages.insert_one({
+                "title": "Contact",
+                "slug": "contact",
+                "page_type": "about",
+                "content": "<h2>Get in Touch</h2><p>Have questions, feedback, or business inquiries? We'd love to hear from you. Reach out to us and we'll get back to you as soon as possible.</p><h2>How to Reach Us</h2><p>For all inquiries, please email us directly. Whether you have a story tip, partnership proposal, advertising question, or general feedback, we're here to help.</p><h2>Business Inquiries</h2><p>For partnership opportunities, sponsored content, and advertising, please include details about your proposal in your email. We typically respond within 1-2 business days.</p>",
+                "created_at": now,
+                "updated_at": now,
+            })
+            logger.info("Contact page seeded")
 
 @app.on_event("startup")
 async def startup():

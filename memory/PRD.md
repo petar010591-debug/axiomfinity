@@ -1,55 +1,71 @@
-# AxiomFinity - Financial News Website PRD
+# AxiomFinity — Product Requirements Document
 
 ## Original Problem Statement
-Full-stack financial news website for retail crypto/financial investors. Brand: **AxiomFinity** (www.axiomfinity.com)
+Build a full-stack financial news site (AxiomFinity). Features include real market data ticker, JWT auth, dark theme with gold accents, multi-category articles, a TipTap WYSIWYG editor with Cloudinary image upload, scheduled publishing, RBAC roles, author profiles, and extended CMS capabilities.
 
-## Architecture
-React 19 + FastAPI + MongoDB | Cloudinary images | Railway deployment | GoDaddy domain
+## Tech Stack
+- **Frontend**: React, TailwindCSS, TipTap Editor, Framer Motion
+- **Backend**: FastAPI (Python), Motor (async MongoDB)
+- **Database**: MongoDB
+- **Storage**: Cloudinary (images)
+- **Analytics**: Plausible
+- **Deployment**: Railway + Custom domain (www.axiomfinity.com)
+- **DNS/Email**: GoDaddy DNS, Zoho Mail (petar@axiomfinity.com)
 
-## What's Implemented
+## Core Features (All Implemented)
+- Dark theme with gold (#D4AF37) accents, Cabinet Grotesk typography
+- Live CoinGecko market data ticker
+- JWT auth with RBAC (super_admin, admin, editor, author)
+- TipTap WYSIWYG editor with Ctrl+K inline links, Cloudinary image upload, Media Library
+- Multi-category articles with badges
+- Scheduled publishing with CET timezone support
+- Dynamic server-side OG meta tags (Nginx bot-proxy)
+- RSS feeds (standard + quality-filtered)
+- XML Sitemaps
+- Custom permalinks (slug editor)
+- FAQ system with JSON-LD schema
+- CMS Pages Manager (About, Contact, Legal, Educational pages)
+- Team Members manager
+- Homepage section ordering
+- SEO/Nofollow manager
+- Author profiles
 
-### Core Site
-- Homepage with reorderable sections (Latest, Crypto, Press Releases, Sponsored, More Stories)
-- Live market ticker (CoinGecko), article pages with DOMPurify sanitization
-- Education, About (with team section), Contact, Legal pages, Search, Author profiles
-- **Multiple category badges** on article cards and article detail pages
+## Completed Work
+- [Feb 2026] Full MVP: Auth, Articles CRUD, Categories, Tags, CMS Pages, Market Ticker
+- [Feb 2026] TipTap editor crash fix, multi-category badges, sitemap fix
+- [Feb 2026] Publish timestamps (CET), Ctrl+K links, Media Library
+- [Feb 2026] RSS/Quality RSS feeds, scheduled article auto-promotion fixes
+- [Feb 2026] Tweet embed support, dynamic OG tags via Nginx
+- [Feb 2026] "Updated" timestamps, FAQ system with JSON-LD
+- [Feb 2026] Custom permalink editor
+- [Apr 2026] DNS optimization (SPF, DKIM, DMARC) for Zoho Mail deliverability
+- [Apr 2026] Contact page converted to CMS-editable page (removed form, added mailto link)
 
-### Admin CMS
-- Articles CRUD with TipTap WYSIWYG editor + image upload (Cloudinary)
-- **TipTap content loads correctly when editing existing articles** (async content sync fix)
-- **Ctrl+K inline link input** in TipTap editor (also accessible via toolbar link button)
-- **Media Library** modal with image grid, search, upload new, sync from Cloudinary, select existing images
-- **Exact publish timestamps** (date + time) in admin articles list
-- Categories & Tags management
-- **Pages editor** (Privacy Policy, Terms, Financial Disclaimer, About, Education pages)
-- **Homepage section reordering** (move sections up/down)
-- **Team Members management** (name, role, bio, avatar - shown on About page)
-- **Users & Roles** (super_admin, admin, editor, author)
-- **SEO / Nofollow settings** (toggle nofollow, exclude dofollow domains)
-- Homepage hero curation, Admin profile with social fields
+## Upcoming Tasks (P2)
+- Category page FAQs — Add FAQ sections to category pages for long-tail SEO
+- Topic authority pages — SEO landing pages for specific assets (e.g., "XRP News Today")
+- Backend refactoring — Split server.py monolith (~1500+ lines) into routes/ directory
 
-### SEO & Analytics
-- XML sitemap, **News sitemap** (Google News format), OG meta tags
-- **Dynamic OG meta tags** for social crawlers (X, Facebook, CMC) — Nginx detects bot user-agents and proxies to backend's `/api/og/{category}/{slug}` endpoint serving server-rendered HTML with og:title, og:description, og:image, twitter:card, canonical URL
-- **RSS 2.0 Feed** (`/rss.xml`) — title, link, pubDate, dc:creator, categories, description, enclosure image, media:content/thumbnail, atom:self, channel image
-- RSS auto-discovery `<link>` tag in HTML `<head>`
-- Nginx proxy for `/sitemap.xml`, `/news-sitemap.xml`, `/rss.xml` to backend
-- **Plausible Analytics** integrated
-- Clean URLs, article scheduling, `robots.txt`
+## Future/Backlog (P3)
+- Custom CTA button blocks in TipTap editor
+- Article revision history
+- Commenting system
+- Newsletter integration
 
-### Production
-- Cloudinary image storage, Dockerfiles, Railway deployment
-- CORS with Bearer token auth, DOMPurify XSS protection
-- Meta: "AxiomFinity | Crypto & Financial News"
+## Key DB Schema
+- `articles`: {title, slug, excerpt, content, cover_image, author_id, categories, status, published_at, updated_at, scheduled_at, faqs}
+- `pages`: {slug, title, content, page_type, updated_at}
+- `users`: {email, password_hash, name, role, bio, avatar_url, social_*}
+- `categories`: {name, slug, description}
+- `tags`: {name, slug}
+- `contact_messages`: {name, email, message, created_at} (legacy, form removed)
 
-## Pending
-- Cloudinary credentials on Railway (image uploads won't work without them)
+## Admin Credentials
+- Email: petar010591@gmail.com
+- Password: Zvezda2023!
 
-## Recently Fixed
-- Sitemap redirect: Nginx now uses `envsubst` at startup to redirect `/sitemap.xml` and `/news-sitemap.xml` to the backend API endpoints. Updated `robots.txt` to reference `www.axiomfinity.com/sitemap.xml` (canonical domain).
-
-## Backlog
-- P2: CTA buttons in editor, article revision history
-- P2: Category page FAQs (add curated FAQ sections to /crypto, /markets, etc.)
-- P2: Topic authority pages (/topics/xrp-news, /topics/bitcoin-price-prediction)
-- P3: Comments, newsletter, analytics dashboard, MFA
+## Key Architecture Notes
+- Nginx serves static React build, proxies bots/RSS/sitemaps to backend
+- Backend is a monolith (server.py ~1560 lines) — needs refactoring
+- Docker ARGs don't carry between build stages; frontend Dockerfile uses sed to inject backend URL
+- Zoho Mail configured on domain; free plan has shared IP deliverability issues with Microsoft
