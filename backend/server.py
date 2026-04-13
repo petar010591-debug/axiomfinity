@@ -514,7 +514,11 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
     slug = slugify(data.title)
     existing = await db.articles.find_one({"slug": slug})
     if existing:
-        slug = f"{slug}-{secrets.token_hex(3)}"
+        # Find a unique slug by appending -2, -3, etc.
+        counter = 2
+        while await db.articles.find_one({"slug": f"{slug}-{counter}"}):
+            counter += 1
+        slug = f"{slug}-{counter}"
     cat_name = ""
     cat_slug = ""
     if data.category_id:
@@ -609,7 +613,10 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         new_slug = slugify(data.title)
         dup = await db.articles.find_one({"slug": new_slug, "_id": {"$ne": ObjectId(article_id)}})
         if dup:
-            new_slug = f"{new_slug}-{secrets.token_hex(3)}"
+            counter = 2
+            while await db.articles.find_one({"slug": f"{new_slug}-{counter}", "_id": {"$ne": ObjectId(article_id)}}):
+                counter += 1
+            new_slug = f"{new_slug}-{counter}"
         update["slug"] = new_slug
     await db.articles.update_one({"_id": ObjectId(article_id)}, {"$set": update})
     updated = await db.articles.find_one({"_id": ObjectId(article_id)})
