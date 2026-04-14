@@ -40,6 +40,7 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - [Feb 2026] Custom permalink editor
 - [Apr 2026] DNS optimization (SPF, DKIM, DMARC) for Zoho Mail deliverability
 - [Apr 2026] Contact page converted to CMS-editable page (removed form, added mailto link)
+- [Apr 2026] Author URLs changed from ID-based to name-based slugs (/author/petar)
 
 ## Upcoming Tasks (P2)
 - Category page FAQs — Add FAQ sections to category pages for long-tail SEO

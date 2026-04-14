@@ -8,19 +8,19 @@ import { motion } from 'framer-motion';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function AuthorProfile() {
-  const { authorId } = useParams();
+  const { authorSlug } = useParams();
   const [author, setAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAuthor = async () => {
       try {
-        const { data } = await axios.get(`${API}/authors/${authorId}`);
+        const { data } = await axios.get(`${API}/authors/by-slug/${authorSlug}`);
         setAuthor(data);
       } catch {} finally { setLoading(false); }
     };
     fetchAuthor();
-  }, [authorId]);
+  }, [authorSlug]);
 
   if (loading) {
     return (

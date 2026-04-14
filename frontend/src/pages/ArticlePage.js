@@ -169,7 +169,7 @@ export default function ArticlePage() {
           <div className="flex items-center justify-between flex-wrap gap-4 pb-6 mb-8 border-b border-[#232B3E]">
             <div className="flex items-center gap-4 text-sm text-[#6B7280]">
               {article.author_id && (
-                <Link to={`/author/${article.author_id}`} className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors" data-testid="article-author-link">
+                <Link to={`/author/${article.author_slug || article.author_id}`} className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors" data-testid="article-author-link">
                   <div className="w-7 h-7 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden">
                     {article.author?.avatar_url ? (
                       <img src={article.author.avatar_url} alt="" className="w-full h-full object-cover" />

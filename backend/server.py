@@ -279,7 +279,7 @@ async def get_articles(
         query["tags"] = tag
     skip = (page - 1) * limit
     total = await db.articles.count_documents(query)
-    articles = await db.articles.find(query, {"_id": 1, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1, "category_name": 1, "category_slug": 1, "categories": 1, "author_name": 1, "tags": 1, "status": 1, "is_sponsored": 1, "published_at": 1, "created_at": 1}).sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
+    articles = await db.articles.find(query, {"_id": 1, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1, "category_name": 1, "category_slug": 1, "categories": 1, "author_name": 1, "author_slug": 1, "tags": 1, "status": 1, "is_sponsored": 1, "published_at": 1, "created_at": 1}).sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
     return {"articles": serialize_list(articles), "total": total, "page": page, "pages": (total + limit - 1) // limit}
 
 @api_router.get("/articles/featured")
@@ -549,6 +549,7 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         "tags": data.tags,
         "author_id": user["id"],
         "author_name": user["name"],
+        "author_slug": (await db.users.find_one({"_id": ObjectId(user["id"])}, {"slug": 1})).get("slug", ""),
         "status": data.status,
         "is_sponsored": data.is_sponsored,
         "published_at": now if data.status == "published" else None,
@@ -806,6 +807,29 @@ async def sync_cloudinary_media(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 # ─── AUTHOR PROFILES ───
+async def ensure_unique_user_slug(name: str, exclude_id=None) -> str:
+    base = slugify(name) or "author"
+    slug = base
+    counter = 1
+    while True:
+        query = {"slug": slug}
+        if exclude_id:
+            query["_id"] = {"$ne": exclude_id}
+        if not await db.users.find_one(query):
+            return slug
+        slug = f"{base}-{counter}"
+        counter += 1
+
+@api_router.get("/authors/by-slug/{slug}")
+async def get_author_by_slug(slug: str):
+    user = await db.users.find_one({"slug": slug}, {"password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Author not found")
+    profile = serialize_doc(user)
+    articles = await db.articles.find({"author_id": profile["id"], "status": "published"}).sort("published_at", -1).limit(20).to_list(20)
+    profile["articles"] = serialize_list(articles)
+    return profile
+
 @api_router.get("/authors/{author_id}")
 async def get_author_profile(author_id: str):
     user = await db.users.find_one({"_id": ObjectId(author_id)}, {"password_hash": 0})
@@ -832,10 +856,12 @@ async def update_profile(data: UserProfileUpdate, user: dict = Depends(get_curre
     if data.website is not None:
         update["website"] = data.website
     if update:
-        await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": update})
-        # Update author_name on articles if name changed
         if "name" in update:
-            await db.articles.update_many({"author_id": user["id"]}, {"$set": {"author_name": update["name"]}})
+            update["slug"] = await ensure_unique_user_slug(update["name"], ObjectId(user["id"]))
+        await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": update})
+        # Update author_name and author_slug on articles if name changed
+        if "name" in update:
+            await db.articles.update_many({"author_id": user["id"]}, {"$set": {"author_name": update["name"], "author_slug": update["slug"]}})
     updated = await db.users.find_one({"_id": ObjectId(user["id"])}, {"password_hash": 0})
     return serialize_doc(updated)
 
@@ -856,10 +882,12 @@ async def admin_create_user(data: UserCreate, user: dict = Depends(get_current_u
     if existing:
         raise HTTPException(status_code=400, detail="Email already in use")
     now = datetime.now(timezone.utc).isoformat()
+    user_slug = await ensure_unique_user_slug(data.name)
     doc = {
         "email": email,
         "password_hash": hash_password(data.password),
         "name": data.name,
+        "slug": user_slug,
         "role": data.role,
         "bio": data.bio or "",
         "avatar_url": "",
@@ -1559,6 +1587,13 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await seed_admin()
     await seed_data()
+    # Backfill slugs for users missing them
+    users_no_slug = await db.users.find({"$or": [{"slug": {"$exists": False}}, {"slug": ""}]}).to_list(500)
+    for u in users_no_slug:
+        slug = await ensure_unique_user_slug(u.get("name", "author"), u["_id"])
+        await db.users.update_one({"_id": u["_id"]}, {"$set": {"slug": slug}})
+        await db.articles.update_many({"author_id": str(u["_id"])}, {"$set": {"author_slug": slug}})
+        logger.info(f"Backfilled slug '{slug}' for user {u.get('name')}")
     # Verify Cloudinary config
     if os.environ.get("CLOUDINARY_CLOUD_NAME"):
         logger.info("Cloudinary configured")

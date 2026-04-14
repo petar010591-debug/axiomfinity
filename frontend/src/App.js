@@ -62,7 +62,7 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/page/:slug" element={<LegalPage />} />
-              <Route path="/author/:authorId" element={<AuthorProfile />} />
+              <Route path="/author/:authorSlug" element={<AuthorProfile />} />
               <Route path="/:category/:slug" element={<ArticlePage />} />
 
               {/* Admin Routes */}
