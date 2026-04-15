@@ -171,7 +171,7 @@ export default function ArticleEditor() {
                     });
                     updateField('featured_image', data.url);
                   } catch (err) {
-                    setError('Image upload failed. Check Cloudinary configuration.');
+                    setError('Image upload failed. Please try again.');
                   } finally {
                     setUploading(false);
                     e.target.value = '';
