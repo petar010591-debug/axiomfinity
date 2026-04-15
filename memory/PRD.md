@@ -7,7 +7,7 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - **Frontend**: React, TailwindCSS, TipTap Editor, Framer Motion
 - **Backend**: FastAPI (Python), Motor (async MongoDB)
 - **Database**: MongoDB
-- **Storage**: Cloudinary (images)
+- **Storage**: Cloudflare R2 (new uploads), Cloudinary (legacy images)
 - **Analytics**: Plausible
 - **Deployment**: Railway + Custom domain (www.axiomfinity.com)
 - **DNS/Email**: GoDaddy DNS, Zoho Mail (petar@axiomfinity.com)
@@ -41,6 +41,7 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - [Apr 2026] DNS optimization (SPF, DKIM, DMARC) for Zoho Mail deliverability
 - [Apr 2026] Contact page converted to CMS-editable page (removed form, added mailto link)
 - [Apr 2026] Author URLs changed from ID-based to name-based slugs (/author/petar)
+- [Apr 2026] Migrated image storage from Cloudinary to Cloudflare R2 (zero egress fees)
 
 ## Upcoming Tasks (P2)
 - Category page FAQs — Add FAQ sections to category pages for long-tail SEO

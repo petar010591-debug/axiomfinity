@@ -91,7 +91,7 @@ def serialize_doc(doc):
 def serialize_list(docs):
     return [serialize_doc(d) for d in docs]
 
-# ─── CLOUDINARY STORAGE ───
+# ─── CLOUDINARY STORAGE (legacy - kept for migration) ───
 import cloudinary
 import cloudinary.uploader
 
@@ -102,14 +102,30 @@ cloudinary.config(
     secure=True
 )
 
-def upload_to_cloudinary(data: bytes, filename: str, content_type: str) -> str:
-    result = cloudinary.uploader.upload(
-        data,
-        folder="finnews",
-        public_id=filename.rsplit(".", 1)[0],
-        resource_type="image"
+# ─── CLOUDFLARE R2 STORAGE ───
+import boto3
+from botocore.config import Config as BotoConfig
+
+r2_client = boto3.client(
+    "s3",
+    endpoint_url=os.environ.get("R2_ENDPOINT_URL"),
+    aws_access_key_id=os.environ.get("R2_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.environ.get("R2_SECRET_ACCESS_KEY"),
+    config=BotoConfig(signature_version="s3v4"),
+    region_name="auto",
+)
+R2_BUCKET = os.environ.get("R2_BUCKET_NAME", "axiomfinity-media")
+R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+
+def upload_to_r2(data: bytes, filename: str, content_type: str) -> str:
+    key = f"finnews/{filename}"
+    r2_client.put_object(
+        Bucket=R2_BUCKET,
+        Key=key,
+        Body=data,
+        ContentType=content_type,
     )
-    return result["secure_url"]
+    return f"{R2_PUBLIC_URL}/{key}"
 
 # ─── RBAC ───
 ROLES_HIERARCHY = {"super_admin": 4, "admin": 3, "editor": 2, "author": 1}
@@ -750,7 +766,7 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "png"
     filename = f"{uuid.uuid4().hex}.{ext}"
     try:
-        url = upload_to_cloudinary(data, filename, file.content_type)
+        url = upload_to_r2(data, filename, file.content_type)
         # Track in media library
         await db.media.insert_one({
             "url": url,
@@ -805,6 +821,98 @@ async def sync_cloudinary_media(user: dict = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Cloudinary sync error: {e}")
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+@api_router.post("/media/migrate-to-r2")
+async def migrate_cloudinary_to_r2(user: dict = Depends(get_current_user)):
+    """Migrate all Cloudinary images to R2 and update all DB references."""
+    if user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Only super admin can migrate")
+
+    migrated = 0
+    failed = 0
+    url_map = {}  # old_url -> new_url
+
+    # Find all media items with Cloudinary URLs
+    cloudinary_media = await db.media.find({"url": {"$regex": "res.cloudinary.com"}}).to_list(5000)
+    logger.info(f"Found {len(cloudinary_media)} Cloudinary images to migrate")
+
+    for item in cloudinary_media:
+        old_url = item["url"]
+        try:
+            # Download from Cloudinary
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(old_url)
+                if resp.status_code != 200:
+                    logger.warning(f"Failed to download {old_url}: HTTP {resp.status_code}")
+                    failed += 1
+                    continue
+                data = resp.content
+                content_type = resp.headers.get("content-type", "image/jpeg")
+
+            # Determine filename
+            ext = "jpg"
+            if "png" in content_type:
+                ext = "png"
+            elif "webp" in content_type:
+                ext = "webp"
+            elif "gif" in content_type:
+                ext = "gif"
+            filename = f"{uuid.uuid4().hex}.{ext}"
+
+            # Upload to R2
+            new_url = upload_to_r2(data, filename, content_type)
+            url_map[old_url] = new_url
+
+            # Update media library record
+            await db.media.update_one({"_id": item["_id"]}, {"$set": {"url": new_url, "r2_migrated": True, "old_cloudinary_url": old_url}})
+            migrated += 1
+            logger.info(f"Migrated: {old_url} -> {new_url}")
+
+        except Exception as e:
+            logger.error(f"Migration failed for {old_url}: {e}")
+            failed += 1
+
+    # Update all article references
+    articles_updated = 0
+    if url_map:
+        all_articles = await db.articles.find({}).to_list(10000)
+        for article in all_articles:
+            updates = {}
+            for field in ["featured_image", "og_image"]:
+                val = article.get(field, "")
+                if val in url_map:
+                    updates[field] = url_map[val]
+
+            # Replace URLs inside HTML content
+            content = article.get("content", "")
+            new_content = content
+            for old_u, new_u in url_map.items():
+                new_content = new_content.replace(old_u, new_u)
+            if new_content != content:
+                updates["content"] = new_content
+
+            if updates:
+                await db.articles.update_one({"_id": article["_id"]}, {"$set": updates})
+                articles_updated += 1
+
+        # Update user avatars
+        all_users = await db.users.find({}).to_list(500)
+        for u in all_users:
+            if u.get("avatar_url", "") in url_map:
+                await db.users.update_one({"_id": u["_id"]}, {"$set": {"avatar_url": url_map[u["avatar_url"]]}})
+
+        # Update team member avatars
+        all_team = await db.team_members.find({}).to_list(500)
+        for t in all_team:
+            if t.get("avatar_url", "") in url_map:
+                await db.team_members.update_one({"_id": t["_id"]}, {"$set": {"avatar_url": url_map[t["avatar_url"]]}})
+
+    return {
+        "migrated": migrated,
+        "failed": failed,
+        "articles_updated": articles_updated,
+        "url_mappings": len(url_map),
+    }
 
 # ─── AUTHOR PROFILES ───
 async def ensure_unique_user_slug(name: str, exclude_id=None) -> str:
