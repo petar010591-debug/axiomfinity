@@ -9,6 +9,7 @@ import HomePage from "./pages/HomePage";
 import ArticlePage from "./pages/ArticlePage";
 import LatestNewsPage from "./pages/LatestNewsPage";
 import EducationPage from "./pages/EducationPage";
+import EducationArticle from "./pages/EducationArticle";
 import AboutPage, { ContactPage } from "./pages/AboutPage";
 import SearchPage from "./pages/SearchPage";
 import LegalPage from "./pages/LegalPage";
@@ -58,6 +59,7 @@ function App() {
               <Route path="/latest" element={<LatestNewsPage />} />
               <Route path="/category/:slug" element={<LatestNewsPage />} />
               <Route path="/education" element={<EducationPage />} />
+              <Route path="/education/:slug" element={<EducationArticle />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/search" element={<SearchPage />} />

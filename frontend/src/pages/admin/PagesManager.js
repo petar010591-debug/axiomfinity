@@ -9,7 +9,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function PagesManager() {
   const [pages, setPages] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ title: '', slug: '', content: '', page_type: 'legal', faqs: [] });
+  const [form, setForm] = useState({ title: '', slug: '', content: '', page_type: 'legal', faqs: [], meta_title: '', meta_description: '' });
   const [saving, setSaving] = useState(false);
 
   const fetchPages = async () => {
@@ -29,12 +29,14 @@ export default function PagesManager() {
       content: page.content || '',
       page_type: page.page_type || 'legal',
       faqs: page.faqs || [],
+      meta_title: page.meta_title || '',
+      meta_description: page.meta_description || '',
     });
   };
 
   const startNew = () => {
     setEditing('new');
-    setForm({ title: '', slug: '', content: '', page_type: 'legal', faqs: [] });
+    setForm({ title: '', slug: '', content: '', page_type: 'legal', faqs: [], meta_title: '', meta_description: '' });
   };
 
   const handleSave = async () => {
@@ -108,6 +110,25 @@ export default function PagesManager() {
               content={form.content}
               onChange={(html) => setForm(prev => ({ ...prev, content: html }))}
             />
+          </div>
+
+          {/* SEO Meta Fields */}
+          <div className="border border-[#232B3E] rounded-lg p-4 space-y-3">
+            <p className="text-sm font-medium text-[#F3F4F6]">SEO Settings</p>
+            <div>
+              <label className="block text-xs text-[#6B7280] mb-1">Meta Title</label>
+              <input value={form.meta_title} onChange={e => setForm({ ...form, meta_title: e.target.value })}
+                placeholder={form.title ? `${form.title} | AxiomFinity` : 'Auto-generated from title'}
+                className="w-full px-3 py-2 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
+                data-testid="page-meta-title" />
+            </div>
+            <div>
+              <label className="block text-xs text-[#6B7280] mb-1">Meta Description</label>
+              <textarea value={form.meta_description} onChange={e => setForm({ ...form, meta_description: e.target.value })}
+                rows={2} placeholder="Brief description for search engines (150-160 characters)"
+                className="w-full px-3 py-2 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none"
+                data-testid="page-meta-description" />
+            </div>
           </div>
 
           {/* FAQ Section */}

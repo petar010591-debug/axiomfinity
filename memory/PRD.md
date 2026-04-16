@@ -44,6 +44,7 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - [Apr 2026] Migrated image storage from Cloudinary to Cloudflare R2 (zero egress fees)
 - [Apr 2026] SSR meta injection — all public pages serve unique title, meta, OG, canonical, JSON-LD in initial HTML
 - [Apr 2026] Pages Manager upgraded: TipTap WYSIWYG editor + FAQ support for all CMS pages
+- [Apr 2026] Education Hub: structured SEO pillar page with 12 beginner articles, 4 sections, featured guide, hub FAQs, per-page FAQs + JSON-LD
 
 ## Upcoming Tasks (P2)
 - Category page FAQs — Add FAQ sections to category pages for long-tail SEO

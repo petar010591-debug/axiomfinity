@@ -188,6 +188,8 @@ class PageCreate(BaseModel):
     content: str = ""
     page_type: str = "educational"
     faqs: List[dict] = []
+    meta_title: Optional[str] = ""
+    meta_description: Optional[str] = ""
 
 class HomepageSlotsUpdate(BaseModel):
     hero_primary: Optional[str] = None
@@ -708,7 +710,7 @@ async def admin_delete_tag(tag_id: str, user: dict = Depends(get_current_user)):
 async def admin_create_page(data: PageCreate, user: dict = Depends(get_current_user)):
     slug = data.slug or slugify(data.title)
     now = datetime.now(timezone.utc).isoformat()
-    doc = {"title": data.title, "slug": slug, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "created_at": now, "updated_at": now}
+    doc = {"title": data.title, "slug": slug, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "meta_title": data.meta_title or "", "meta_description": data.meta_description or "", "created_at": now, "updated_at": now}
     result = await db.pages.insert_one(doc)
     doc["id"] = str(result.inserted_id)
     doc.pop("_id", None)
@@ -717,7 +719,7 @@ async def admin_create_page(data: PageCreate, user: dict = Depends(get_current_u
 @api_router.put("/admin/pages/{page_id}")
 async def admin_update_page(page_id: str, data: PageCreate, user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
-    update = {"title": data.title, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "updated_at": now}
+    update = {"title": data.title, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "meta_title": data.meta_title or "", "meta_description": data.meta_description or "", "updated_at": now}
     if data.slug:
         update["slug"] = data.slug
     await db.pages.update_one({"_id": ObjectId(page_id)}, {"$set": update})
@@ -730,6 +732,31 @@ async def admin_delete_page(page_id: str, user: dict = Depends(get_current_user)
     return {"message": "Page deleted"}
 
 # ─── ADMIN HOMEPAGE CURATION ───
+
+# ─── EDUCATION HUB CONFIG ───
+@api_router.get("/education-hub")
+async def get_education_hub():
+    config = await db.education_hub.find_one({"_id": "config"}, {"_id": 0})
+    if not config:
+        return {"hero_title": "", "hero_subtitle": "", "intro_content": "", "featured_slug": "", "sections": [], "faqs": []}
+    return config
+
+@api_router.put("/admin/education-hub")
+async def update_education_hub(data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    allowed = {"hero_title", "hero_subtitle", "intro_content", "featured_slug", "sections", "faqs"}
+    update = {k: v for k, v in data.items() if k in allowed}
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.education_hub.update_one({"_id": "config"}, {"$set": update}, upsert=True)
+    return {"message": "Education hub updated"}
+
+@api_router.get("/education-hub/pages")
+async def get_education_pages():
+    """Get all educational pages for the hub."""
+    pages = await db.pages.find({"page_type": "educational"}, {"_id": 1, "title": 1, "slug": 1, "content": 1, "meta_title": 1, "meta_description": 1, "faqs": 1}).to_list(100)
+    return serialize_list(pages)
+
 @api_router.get("/admin/homepage")
 async def admin_get_homepage(user: dict = Depends(get_current_user)):
     slots = await db.homepage_slots.find_one({"_id": "config"})
@@ -1090,7 +1117,7 @@ async def sitemap():
     base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
     articles = await db.articles.find(build_public_query(), {"slug": 1, "category_slug": 1, "updated_at": 1}).to_list(5000)
     categories = await db.categories.find({}, {"slug": 1}).to_list(100)
-    pages = await db.pages.find({}, {"slug": 1, "updated_at": 1}).to_list(100)
+    pages = await db.pages.find({}, {"slug": 1, "page_type": 1, "updated_at": 1}).to_list(100)
 
     urls = [f'  <url><loc>{base_url}/</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>']
     urls.append(f'  <url><loc>{base_url}/latest</loc><changefreq>hourly</changefreq><priority>0.9</priority></url>')
@@ -1109,7 +1136,13 @@ async def sitemap():
         urls.append(f'  <url><loc>{base_url}/{cat_slug}/{slug}</loc>{mod_tag}<changefreq>weekly</changefreq><priority>0.7</priority></url>')
 
     for pg in pages:
-        urls.append(f'  <url><loc>{base_url}/page/{pg["slug"]}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>')
+        pg_slug = pg["slug"]
+        if pg.get("page_type") == "educational":
+            lastmod = pg.get("updated_at", "")
+            mod_tag = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+            urls.append(f'  <url><loc>{base_url}/education/{pg_slug}</loc>{mod_tag}<changefreq>monthly</changefreq><priority>0.7</priority></url>')
+        else:
+            urls.append(f'  <url><loc>{base_url}/page/{pg_slug}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>')
 
     xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -1530,14 +1563,45 @@ async def ssr_page(path: str = "/"):
             json_ld=faq_ld,
         ))
 
-    # ─── EDUCATION ───
+    # ─── EDUCATION HUB ───
     if path == "education":
+        hub = await db.education_hub.find_one({"_id": "config"}, {"_id": 0, "faqs": 1})
+        faqs = hub.get("faqs", []) if hub else []
+        faq_ld = ""
+        if faqs:
+            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
+            if faq_entries:
+                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
         return HTMLResponse(inject_meta(
             base_html,
-            title="Crypto & Finance Education | AxiomFinity",
-            description="Learn about blockchain technology, cryptocurrency wallets, DeFi protocols, and financial markets with our educational guides and articles.",
+            title="Crypto for Beginners: Learn Cryptocurrency and Blockchain | AxiomFinity",
+            description="Explore beginner-friendly crypto education guides on Bitcoin, Ethereum, wallets, blockchain, and safe investing. Start learning digital finance with AxiomFinity.",
             canonical=f"{base_url}/education",
+            json_ld=faq_ld,
         ))
+
+    # ─── EDUCATION ARTICLE PAGES ───
+    if path.startswith("education/"):
+        edu_slug = path.split("/", 1)[1]
+        page = await db.pages.find_one({"slug": edu_slug, "page_type": "educational"}, {"_id": 0, "title": 1, "meta_title": 1, "meta_description": 1, "content": 1, "faqs": 1})
+        if page:
+            title = page.get("meta_title") or page.get("title", "Education")
+            description = page.get("meta_description") or ""
+            if not description:
+                description = re.sub(r'<[^>]+>', '', page.get("content", ""))[:200]
+            faqs = page.get("faqs", [])
+            faq_ld = ""
+            if faqs:
+                faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
+                if faq_entries:
+                    faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            return HTMLResponse(inject_meta(
+                base_html,
+                title=title if '|' in title else f"{title} | AxiomFinity",
+                description=description[:200],
+                canonical=f"{base_url}/education/{edu_slug}",
+                json_ld=faq_ld,
+            ))
 
     # ─── LATEST ───
     if path == "latest":
@@ -1930,6 +1994,19 @@ async def seed_data():
                 "updated_at": now,
             })
             logger.info("Contact page seeded")
+
+    # Seed education hub content
+    from education_seed import EDUCATION_HUB_CONFIG, EDUCATION_ARTICLES
+    if not await db.education_hub.find_one({"_id": "config"}):
+        await db.education_hub.insert_one(EDUCATION_HUB_CONFIG)
+        logger.info("Education hub config seeded")
+    for art in EDUCATION_ARTICLES:
+        if not await db.pages.find_one({"slug": art["slug"]}):
+            now = datetime.now(timezone.utc).isoformat()
+            art["created_at"] = now
+            art["updated_at"] = now
+            await db.pages.insert_one(art)
+            logger.info(f"Education page seeded: {art['slug']}")
 
 @app.on_event("startup")
 async def startup():
