@@ -54,7 +54,7 @@ export default function TipTapEditor({ content, onChange }) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [2, 3, 4] },
+        heading: { levels: [1, 2, 3, 4] },
       }),
       Image.configure({ inline: false, allowBase64: false }),
       Youtube.configure({ width: 640, height: 360, nocookie: true }),
@@ -184,6 +184,9 @@ export default function TipTapEditor({ content, onChange }) {
 
         <ToolbarDivider />
 
+        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="Heading 1">
+          <span className="text-xs font-bold">H1</span>
+        </ToolbarButton>
         <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="Heading 2">
           <Heading2 className="w-4 h-4" />
         </ToolbarButton>
