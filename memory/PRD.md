@@ -42,6 +42,7 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - [Apr 2026] Contact page converted to CMS-editable page (removed form, added mailto link)
 - [Apr 2026] Author URLs changed from ID-based to name-based slugs (/author/petar)
 - [Apr 2026] Migrated image storage from Cloudinary to Cloudflare R2 (zero egress fees)
+- [Apr 2026] SSR meta injection — all public pages serve unique title, meta, OG, canonical, JSON-LD in initial HTML
 
 ## Upcoming Tasks (P2)
 - Category page FAQs — Add FAQ sections to category pages for long-tail SEO

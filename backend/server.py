@@ -1413,6 +1413,224 @@ async def news_sitemap():
 # ─── INCLUDE ROUTER ───
 app.include_router(api_router)
 
+# ─── SSR META INJECTION ───
+# Serves the React index.html with route-specific <title>, meta, OG, canonical, JSON-LD
+from fastapi.responses import HTMLResponse
+from html import escape as html_escape
+import re
+
+SSR_INDEX_HTML = None  # Cached on first request
+
+def get_index_html():
+    global SSR_INDEX_HTML
+    if SSR_INDEX_HTML:
+        return SSR_INDEX_HTML
+    # Check React paths: Railway production, then local build, then dev
+    for path in ["/usr/share/nginx/html/index.html", "/app/frontend/build/index.html", "/app/frontend/public/index.html"]:
+        try:
+            with open(path, "r") as f:
+                content = f.read()
+                if "id=\"root\"" in content:  # Verify it's the React app
+                    SSR_INDEX_HTML = content.replace("%PUBLIC_URL%", "")
+                    logger.info(f"SSR: Loaded index.html from {path}")
+                    return SSR_INDEX_HTML
+        except FileNotFoundError:
+            continue
+    logger.error("SSR: React index.html not found")
+    return None
+
+def inject_meta(html: str, title: str, description: str, canonical: str, og_image: str = "", og_type: str = "website", json_ld: str = "", extra_meta: str = "") -> str:
+    """Replace default meta tags in index.html with route-specific ones."""
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+    og_img = og_image or f"{base_url}/logo512.png"
+    t = html_escape(title)
+    d = html_escape(description)
+
+    # Build new head content
+    meta_block = f"""<title>{t}</title>
+<meta name="description" content="{d}"/>
+<meta property="og:type" content="{og_type}"/>
+<meta property="og:title" content="{t}"/>
+<meta property="og:description" content="{d}"/>
+<meta property="og:image" content="{html_escape(og_img)}"/>
+<meta property="og:url" content="{html_escape(canonical)}"/>
+<meta property="og:site_name" content="AxiomFinity"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="{t}"/>
+<meta name="twitter:description" content="{d}"/>
+<meta name="twitter:image" content="{html_escape(og_img)}"/>
+<link rel="canonical" href="{html_escape(canonical)}"/>
+{extra_meta}"""
+    if json_ld:
+        meta_block += f'\n<script type="application/ld+json">{json_ld}</script>'
+
+    # Remove existing title
+    html = re.sub(r'<title>[^<]*</title>', '', html, count=1)
+    # Remove existing meta description (handles both /> and  />)
+    html = re.sub(r'<meta\s+name="description"[^>]*/?\s*>', '', html, count=1)
+    # Remove all existing OG tags
+    html = re.sub(r'<meta\s+property="og:[^"]*"[^>]*/?\s*>', '', html)
+    # Insert our meta block before </head>
+    html = html.replace('</head>', f'{meta_block}\n</head>')
+    return html
+
+@app.get("/ssr/page")
+async def ssr_page(path: str = "/"):
+    """SSR meta injection endpoint. Nginx proxies public routes here."""
+    base_html = get_index_html()
+    if not base_html:
+        raise HTTPException(status_code=500, detail="index.html not found")
+
+    base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+    path = path.strip("/")
+
+    # ─── HOMEPAGE ───
+    if path == "" or path == "index.html":
+        return HTMLResponse(inject_meta(
+            base_html,
+            title="Crypto News Today, Bitcoin, Altcoins, Stocks & Metals Analysis | AxiomFinity",
+            description="Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage. Stay ahead with AxiomFinity.",
+            canonical=base_url,
+            json_ld='{"@context":"https://schema.org","@type":"WebSite","name":"AxiomFinity","url":"' + base_url + '","description":"Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage.","publisher":{"@type":"Organization","name":"AxiomFinity","logo":{"@type":"ImageObject","url":"' + base_url + '/logo192.png"}}}'
+        ))
+
+    # ─── ABOUT ───
+    if path == "about":
+        page = await db.pages.find_one({"slug": "about"}, {"_id": 0, "title": 1, "content": 1})
+        title = page.get("title", "About Us") if page else "About Us"
+        return HTMLResponse(inject_meta(
+            base_html,
+            title=f"{title} | AxiomFinity",
+            description="Learn about AxiomFinity, our mission, editorial values, and the team behind the most trusted source for crypto and financial news.",
+            canonical=f"{base_url}/about",
+        ))
+
+    # ─── CONTACT ───
+    if path == "contact":
+        return HTMLResponse(inject_meta(
+            base_html,
+            title="Contact Us | AxiomFinity",
+            description="Get in touch with the AxiomFinity team. Reach out for questions, feedback, business inquiries, or partnership opportunities.",
+            canonical=f"{base_url}/contact",
+        ))
+
+    # ─── EDUCATION ───
+    if path == "education":
+        return HTMLResponse(inject_meta(
+            base_html,
+            title="Crypto & Finance Education | AxiomFinity",
+            description="Learn about blockchain technology, cryptocurrency wallets, DeFi protocols, and financial markets with our educational guides and articles.",
+            canonical=f"{base_url}/education",
+        ))
+
+    # ─── LATEST ───
+    if path == "latest":
+        return HTMLResponse(inject_meta(
+            base_html,
+            title="Latest Crypto & Financial News | AxiomFinity",
+            description="The latest breaking news and analysis on cryptocurrency, Bitcoin, altcoins, DeFi, and financial markets from AxiomFinity.",
+            canonical=f"{base_url}/latest",
+        ))
+
+    # ─── LEGAL PAGES ───
+    legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer"}
+    if path in legal_slugs:
+        page = await db.pages.find_one({"slug": path}, {"_id": 0, "title": 1})
+        title = page.get("title", legal_slugs[path]) if page else legal_slugs[path]
+        return HTMLResponse(inject_meta(
+            base_html,
+            title=f"{title} | AxiomFinity",
+            description=f"Read the AxiomFinity {legal_slugs[path].lower()}.",
+            canonical=f"{base_url}/{path}",
+        ))
+
+    # ─── AUTHOR PAGES ───
+    if path.startswith("author/"):
+        author_slug = path.split("/", 1)[1]
+        user = await db.users.find_one({"slug": author_slug}, {"_id": 0, "name": 1, "bio": 1, "avatar_url": 1})
+        if user:
+            name = user.get("name", "Author")
+            bio = user.get("bio", f"Articles and analysis by {name} on AxiomFinity.")
+            return HTMLResponse(inject_meta(
+                base_html,
+                title=f"{name} | AxiomFinity Author",
+                description=bio[:160],
+                canonical=f"{base_url}/author/{author_slug}",
+                og_image=user.get("avatar_url", ""),
+                og_type="profile",
+            ))
+
+    # ─── CATEGORY PAGES (single segment like /crypto, /markets, /defi, /analysis) ───
+    categories_cache = await db.categories.find({}, {"_id": 0, "slug": 1, "name": 1, "description": 1}).to_list(50)
+    cat_map = {c["slug"]: c for c in categories_cache}
+    if path in cat_map:
+        cat = cat_map[path]
+        return HTMLResponse(inject_meta(
+            base_html,
+            title=f"{cat['name']} News & Analysis | AxiomFinity",
+            description=cat.get("description", f"Latest {cat['name'].lower()} news, analysis, and insights from AxiomFinity.")[:200],
+            canonical=f"{base_url}/{path}",
+        ))
+
+    # ─── ARTICLE PAGES (/{category}/{slug}) ───
+    parts = path.split("/")
+    if len(parts) == 2:
+        category_slug, article_slug = parts
+        article = await db.articles.find_one(
+            {"slug": article_slug, **build_public_query()},
+            {"_id": 0, "title": 1, "excerpt": 1, "featured_image": 1, "og_image": 1,
+             "meta_title": 1, "meta_description": 1, "category_slug": 1, "author_name": 1,
+             "published_at": 1, "updated_at": 1, "faqs": 1}
+        )
+        if article:
+            title = article.get("meta_title") or article.get("title", "")
+            description = article.get("meta_description") or article.get("excerpt", "")
+            image = article.get("og_image") or article.get("featured_image", "")
+            canonical = f"{base_url}/{article.get('category_slug', category_slug)}/{article_slug}"
+            author = article.get("author_name", "AxiomFinity")
+            published_at = article.get("published_at", "")
+            modified_at = article.get("updated_at", published_at)
+
+            extra = f'<meta property="article:author" content="{html_escape(author)}"/>\n<meta property="article:published_time" content="{published_at}"/>\n<meta property="article:modified_time" content="{modified_at}"/>'
+
+            json_ld = '{"@context":"https://schema.org","@type":"NewsArticle","headline":"' + html_escape(title).replace('"', '\\"') + '","description":"' + html_escape(description).replace('"', '\\"') + '","image":["' + html_escape(image) + '"],"datePublished":"' + str(published_at) + '","dateModified":"' + str(modified_at) + '","author":{"@type":"Person","name":"' + html_escape(author) + '"},"publisher":{"@type":"Organization","name":"AxiomFinity","logo":{"@type":"ImageObject","url":"' + base_url + '/logo192.png"}},"mainEntityOfPage":{"@type":"WebPage","@id":"' + canonical + '"}}'
+
+            # Add FAQ schema if present
+            faqs = article.get("faqs", [])
+            if faqs:
+                faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
+                if faq_entries:
+                    json_ld += '\n</script>\n<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+
+            return HTMLResponse(inject_meta(
+                base_html, title=f"{title} | AxiomFinity", description=description[:200],
+                canonical=canonical, og_image=image, og_type="article",
+                json_ld=json_ld, extra_meta=extra,
+            ))
+
+    # ─── EDUCATION SUBPAGES ───
+    if path.startswith("education/"):
+        page_slug = path.split("/", 1)[1]
+        page = await db.pages.find_one({"slug": page_slug}, {"_id": 0, "title": 1, "content": 1})
+        if page:
+            title = page.get("title", "Education")
+            # Strip HTML tags for description
+            content_text = re.sub(r'<[^>]+>', '', page.get("content", ""))[:200]
+            return HTMLResponse(inject_meta(
+                base_html,
+                title=f"{title} | AxiomFinity Education",
+                description=content_text,
+                canonical=f"{base_url}/{path}",
+            ))
+
+    # ─── FALLBACK ───
+    return HTMLResponse(inject_meta(
+        base_html,
+        title="AxiomFinity | Crypto News, Bitcoin, Altcoins & Market Analysis",
+        description="Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage.",
+        canonical=f"{base_url}/{path}" if path else base_url,
+    ))
+
 # ─── SEED DATA ───
 SAMPLE_CATEGORIES = [
     {"name": "Crypto", "slug": "crypto", "description": "Cryptocurrency news and analysis"},
