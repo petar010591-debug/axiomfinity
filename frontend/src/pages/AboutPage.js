@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { Mail } from 'lucide-react';
 import { motion } from 'framer-motion';
+import FaqAccordion from '../components/FaqAccordion';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -92,6 +93,12 @@ export default function AboutPage() {
           </div>
         </section>
       )}
+      {/* FAQs */}
+      {aboutContent?.faqs?.length > 0 && (
+        <div className="max-w-3xl">
+          <FaqAccordion faqs={aboutContent.faqs} />
+        </div>
+      )}
     </div>
   );
 }
@@ -144,6 +151,13 @@ export function ContactPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* FAQs */}
+      {pageContent?.faqs?.length > 0 && (
+        <div className="max-w-3xl mt-12">
+          <FaqAccordion faqs={pageContent.faqs} />
+        </div>
+      )}
     </div>
   );
 }

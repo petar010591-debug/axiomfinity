@@ -187,6 +187,7 @@ class PageCreate(BaseModel):
     slug: Optional[str] = ""
     content: str = ""
     page_type: str = "educational"
+    faqs: List[dict] = []
 
 class HomepageSlotsUpdate(BaseModel):
     hero_primary: Optional[str] = None
@@ -707,7 +708,7 @@ async def admin_delete_tag(tag_id: str, user: dict = Depends(get_current_user)):
 async def admin_create_page(data: PageCreate, user: dict = Depends(get_current_user)):
     slug = data.slug or slugify(data.title)
     now = datetime.now(timezone.utc).isoformat()
-    doc = {"title": data.title, "slug": slug, "content": data.content, "page_type": data.page_type, "created_at": now, "updated_at": now}
+    doc = {"title": data.title, "slug": slug, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "created_at": now, "updated_at": now}
     result = await db.pages.insert_one(doc)
     doc["id"] = str(result.inserted_id)
     doc.pop("_id", None)
@@ -716,7 +717,7 @@ async def admin_create_page(data: PageCreate, user: dict = Depends(get_current_u
 @api_router.put("/admin/pages/{page_id}")
 async def admin_update_page(page_id: str, data: PageCreate, user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
-    update = {"title": data.title, "content": data.content, "page_type": data.page_type, "updated_at": now}
+    update = {"title": data.title, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "updated_at": now}
     if data.slug:
         update["slug"] = data.slug
     await db.pages.update_one({"_id": ObjectId(page_id)}, {"$set": update})
@@ -1496,22 +1497,37 @@ async def ssr_page(path: str = "/"):
 
     # ─── ABOUT ───
     if path == "about":
-        page = await db.pages.find_one({"slug": "about"}, {"_id": 0, "title": 1, "content": 1})
+        page = await db.pages.find_one({"slug": "about"}, {"_id": 0, "title": 1, "content": 1, "faqs": 1})
         title = page.get("title", "About Us") if page else "About Us"
+        faqs = page.get("faqs", []) if page else []
+        faq_ld = ""
+        if faqs:
+            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
+            if faq_entries:
+                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{title} | AxiomFinity",
             description="Learn about AxiomFinity, our mission, editorial values, and the team behind the most trusted source for crypto and financial news.",
             canonical=f"{base_url}/about",
+            json_ld=faq_ld,
         ))
 
     # ─── CONTACT ───
     if path == "contact":
+        page = await db.pages.find_one({"slug": "contact"}, {"_id": 0, "faqs": 1})
+        faqs = page.get("faqs", []) if page else []
+        faq_ld = ""
+        if faqs:
+            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
+            if faq_entries:
+                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
         return HTMLResponse(inject_meta(
             base_html,
             title="Contact Us | AxiomFinity",
             description="Get in touch with the AxiomFinity team. Reach out for questions, feedback, business inquiries, or partnership opportunities.",
             canonical=f"{base_url}/contact",
+            json_ld=faq_ld,
         ))
 
     # ─── EDUCATION ───
@@ -1535,13 +1551,20 @@ async def ssr_page(path: str = "/"):
     # ─── LEGAL PAGES ───
     legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer"}
     if path in legal_slugs:
-        page = await db.pages.find_one({"slug": path}, {"_id": 0, "title": 1})
+        page = await db.pages.find_one({"slug": path}, {"_id": 0, "title": 1, "faqs": 1})
         title = page.get("title", legal_slugs[path]) if page else legal_slugs[path]
+        faqs = page.get("faqs", []) if page else []
+        faq_ld = ""
+        if faqs:
+            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
+            if faq_entries:
+                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{title} | AxiomFinity",
             description=f"Read the AxiomFinity {legal_slugs[path].lower()}.",
             canonical=f"{base_url}/{path}",
+            json_ld=faq_ld,
         ))
 
     # ─── AUTHOR PAGES ───

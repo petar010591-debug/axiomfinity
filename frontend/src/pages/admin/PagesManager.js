@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { FileEdit, Plus, Trash2, Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { FileEdit, Plus, Trash2, Save, ArrowLeft, Loader2, HelpCircle, X } from 'lucide-react';
+import TipTapEditor from '../../components/TipTapEditor';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function PagesManager() {
   const [pages, setPages] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ title: '', slug: '', content: '', page_type: 'legal' });
+  const [form, setForm] = useState({ title: '', slug: '', content: '', page_type: 'legal', faqs: [] });
   const [saving, setSaving] = useState(false);
 
   const fetchPages = async () => {
@@ -23,12 +23,18 @@ export default function PagesManager() {
 
   const startEdit = (page) => {
     setEditing(page.id);
-    setForm({ title: page.title, slug: page.slug, content: page.content || '', page_type: page.page_type || 'legal' });
+    setForm({
+      title: page.title,
+      slug: page.slug,
+      content: page.content || '',
+      page_type: page.page_type || 'legal',
+      faqs: page.faqs || [],
+    });
   };
 
   const startNew = () => {
     setEditing('new');
-    setForm({ title: '', slug: '', content: '', page_type: 'legal' });
+    setForm({ title: '', slug: '', content: '', page_type: 'legal', faqs: [] });
   };
 
   const handleSave = async () => {
@@ -52,6 +58,12 @@ export default function PagesManager() {
     fetchPages();
   };
 
+  const updateFaq = (index, field, value) => {
+    const updated = [...form.faqs];
+    updated[index] = { ...updated[index], [field]: value };
+    setForm({ ...form, faqs: updated });
+  };
+
   if (editing) {
     return (
       <div className="p-6 lg:p-8" data-testid="page-editor">
@@ -61,19 +73,24 @@ export default function PagesManager() {
         <h1 className="text-xl font-bold text-[#F3F4F6] mb-6" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
           {editing === 'new' ? 'New Page' : `Edit: ${form.title}`}
         </h1>
-        <div className="space-y-4 max-w-3xl">
+        <div className="space-y-5 max-w-4xl">
+          {/* Title */}
           <div>
             <label className="block text-sm text-[#9CA3AF] mb-1">Title</label>
             <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
               className="w-full px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
               data-testid="page-title-input" />
           </div>
+
+          {/* Slug */}
           <div>
             <label className="block text-sm text-[#9CA3AF] mb-1">Slug</label>
             <input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })}
               className="w-full px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
               placeholder="privacy-policy" data-testid="page-slug-input" />
           </div>
+
+          {/* Type */}
           <div>
             <label className="block text-sm text-[#9CA3AF] mb-1">Type</label>
             <select value={form.page_type} onChange={e => setForm({ ...form, page_type: e.target.value })}
@@ -83,13 +100,71 @@ export default function PagesManager() {
               <option value="about">About</option>
             </select>
           </div>
+
+          {/* TipTap WYSIWYG Content Editor */}
           <div>
-            <label className="block text-sm text-[#9CA3AF] mb-1">Content (HTML)</label>
-            <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })}
-              rows={16}
-              className="w-full px-3 py-2.5 bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm font-mono focus:outline-none focus:border-[#D4AF37]"
-              data-testid="page-content-input" />
+            <label className="block text-sm text-[#9CA3AF] mb-1">Content</label>
+            <TipTapEditor
+              content={form.content}
+              onChange={(html) => setForm(prev => ({ ...prev, content: html }))}
+            />
           </div>
+
+          {/* FAQ Section */}
+          <div className="border border-[#232B3E] rounded-lg p-4" data-testid="page-faq-section">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-[#F3F4F6]">
+                <HelpCircle className="w-4 h-4 text-[#D4AF37]" /> FAQs <span className="text-[10px] text-[#6B7280]">({form.faqs.length} items)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, faqs: [...form.faqs, { question: '', answer: '' }] })}
+                className="px-3 py-1 text-xs bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg hover:bg-[#D4AF37]/20 transition-colors"
+                data-testid="page-faq-add-btn"
+              >
+                + Add FAQ
+              </button>
+            </div>
+            {form.faqs.length === 0 && (
+              <p className="text-xs text-[#6B7280] py-2">No FAQs yet. Add one to improve SEO with structured data.</p>
+            )}
+            <div className="space-y-3">
+              {form.faqs.map((faq, i) => (
+                <div key={i} className="bg-[#0A0D14] border border-[#1A202E] rounded-lg p-3" data-testid={`page-faq-item-${i}`}>
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <input
+                          placeholder={`Question ${i + 1}`}
+                          value={faq.question}
+                          onChange={e => updateFaq(i, 'question', e.target.value)}
+                          className="w-full px-2.5 py-2 bg-[#121620] border border-[#232B3E] rounded text-sm text-[#F3F4F6] focus:outline-none focus:border-[#D4AF37]"
+                          data-testid={`page-faq-question-${i}`}
+                        />
+                      </div>
+                      <button
+                        onClick={() => setForm({ ...form, faqs: form.faqs.filter((_, j) => j !== i) })}
+                        className="p-1.5 text-[#6B7280] hover:text-[#EF4444] transition-colors flex-shrink-0"
+                        data-testid={`page-faq-remove-${i}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <textarea
+                      placeholder="Answer..."
+                      value={faq.answer}
+                      onChange={e => updateFaq(i, 'answer', e.target.value)}
+                      rows={2}
+                      className="w-full px-2.5 py-2 bg-[#121620] border border-[#232B3E] rounded text-sm text-[#F3F4F6] focus:outline-none focus:border-[#D4AF37] resize-none"
+                      data-testid={`page-faq-answer-${i}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Save Button */}
           <button onClick={handleSave} disabled={saving}
             className="flex items-center gap-1.5 px-5 py-2.5 bg-[#D4AF37] text-black text-sm font-medium rounded-lg hover:bg-[#C39F2F] disabled:opacity-50"
             data-testid="page-save-btn">
@@ -113,7 +188,7 @@ export default function PagesManager() {
           <div key={page.id} className="flex items-center justify-between p-4 bg-[#121620] border border-[#232B3E] rounded-lg" data-testid={`page-item-${page.slug}`}>
             <div>
               <p className="text-sm font-medium text-[#F3F4F6]">{page.title}</p>
-              <p className="text-xs text-[#6B7280]">/{page.slug} &middot; {page.page_type}</p>
+              <p className="text-xs text-[#6B7280]">/{page.slug} &middot; {page.page_type}{page.faqs?.length > 0 ? ` &middot; ${page.faqs.length} FAQs` : ''}</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => startEdit(page)} className="px-3 py-1.5 text-xs text-[#D4AF37] border border-[#D4AF37]/30 rounded-lg hover:bg-[#D4AF37]/10" data-testid={`edit-page-${page.slug}`}>
