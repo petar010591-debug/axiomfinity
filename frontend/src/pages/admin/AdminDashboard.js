@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
 import {
-  LayoutDashboard, FileText, FolderOpen, Tag, Home, LogOut, ChevronRight, Plus, Eye, PenLine, Archive, Menu, X, Users, UserCircle, Clock, FileEdit, Globe, ArrowUpDown, UsersRound
+  LayoutDashboard, FileText, FolderOpen, Tag, Home, LogOut, ChevronRight, Plus, Eye, PenLine, Archive, Menu, X, Users, UserCircle, Clock, FileEdit, Globe, ArrowUpDown, UsersRound, BookOpen
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -14,6 +14,7 @@ const SIDEBAR_ITEMS = [
   { label: 'Articles', href: '/admin/articles', icon: FileText },
   { label: 'Categories', href: '/admin/categories', icon: FolderOpen },
   { label: 'Pages', href: '/admin/pages', icon: FileEdit },
+  { label: 'Education Hub', href: '/admin/education', icon: BookOpen },
   { label: 'Homepage', href: '/admin/homepage', icon: Home },
   { label: 'Team Members', href: '/admin/team', icon: UsersRound },
   { label: 'Users & Roles', href: '/admin/users', icon: Users },

@@ -23,6 +23,7 @@ import HomepageCuration from "./pages/admin/HomepageCuration";
 import UsersManager from "./pages/admin/UsersManager";
 import AdminProfile from "./pages/admin/AdminProfile";
 import PagesManager from "./pages/admin/PagesManager";
+import EducationHubManager from "./pages/admin/EducationHubManager";
 import TeamManager from "./pages/admin/TeamManager";
 import SeoSettings from "./pages/admin/SeoSettings";
 import HomepageOrder from "./pages/admin/HomepageOrder";
@@ -75,6 +76,7 @@ function App() {
                 <Route path="articles/edit/:id" element={<ArticleEditor />} />
                 <Route path="categories" element={<CategoriesManager />} />
                 <Route path="pages" element={<PagesManager />} />
+                <Route path="education" element={<EducationHubManager />} />
                 <Route path="homepage" element={<HomepageCuration />} />
                 <Route path="homepage/order" element={<HomepageOrder />} />
                 <Route path="team" element={<TeamManager />} />
