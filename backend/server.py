@@ -1455,23 +1455,36 @@ import re
 
 SSR_INDEX_HTML = None  # Cached on first request
 
-def get_index_html():
+async def get_index_html_async():
     global SSR_INDEX_HTML
     if SSR_INDEX_HTML:
         return SSR_INDEX_HTML
-    # Check React paths: Railway production, then local build, then dev
-    for path in ["/usr/share/nginx/html/index.html", "/app/frontend/build/index.html", "/app/frontend/public/index.html"]:
+    # Check local file paths (preview env, local dev)
+    for path in ["/app/frontend/build/index.html", "/app/frontend/public/index.html"]:
         try:
             with open(path, "r") as f:
                 content = f.read()
-                if "id=\"root\"" in content:  # Verify it's the React app
+                if "id=\"root\"" in content:
                     SSR_INDEX_HTML = content.replace("%PUBLIC_URL%", "")
                     logger.info(f"SSR: Loaded index.html from {path}")
                     return SSR_INDEX_HTML
         except FileNotFoundError:
             continue
-    logger.error("SSR: React index.html not found")
-    return None
+    # Railway: backend can't access frontend files — fetch from the live site
+    site_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as http:
+            resp = await http.get(f"{site_url}/index.html")
+            if resp.status_code == 200 and "id=\"root\"" in resp.text:
+                SSR_INDEX_HTML = resp.text
+                logger.info("SSR: Fetched index.html from site URL")
+                return SSR_INDEX_HTML
+    except Exception as e:
+        logger.error(f"SSR: Failed to fetch index.html from site: {e}")
+    # Ultimate fallback — minimal HTML shell with correct structure for meta injection
+    logger.warning("SSR: Using fallback HTML template")
+    SSR_INDEX_HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#0A0D14"/><link rel="alternate" type="application/rss+xml" title="AxiomFinity RSS Feed" href="/rss.xml"/><meta property="og:title" content="AxiomFinity"/><meta name="description" content=""/><link rel="icon" type="image/png" href="/logo.png"/><title>AxiomFinity</title></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>window.location.reload();</script></body></html>'
+    return SSR_INDEX_HTML
 
 def inject_meta(html: str, title: str, description: str, canonical: str, og_image: str = "", og_type: str = "website", json_ld: str = "", extra_meta: str = "") -> str:
     """Replace default meta tags in index.html with route-specific ones."""
@@ -1511,7 +1524,7 @@ def inject_meta(html: str, title: str, description: str, canonical: str, og_imag
 @app.get("/ssr/page")
 async def ssr_page(path: str = "/"):
     """SSR meta injection endpoint. Nginx proxies public routes here."""
-    base_html = get_index_html()
+    base_html = await get_index_html_async()
     if not base_html:
         raise HTTPException(status_code=500, detail="index.html not found")
 
