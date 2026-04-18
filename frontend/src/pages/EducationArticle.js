@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, BookOpen } from 'lucide-react';
+import { ArrowLeft, BookOpen, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import FaqAccordion from '../components/FaqAccordion';
 
@@ -10,17 +10,22 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function EducationArticle() {
   const { slug } = useParams();
   const [page, setPage] = useState(null);
+  const [author, setAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchPage = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
-        const { data } = await axios.get(`${API}/pages/${slug}`);
-        setPage(data);
+        const [pageRes, authorRes] = await Promise.all([
+          axios.get(`${API}/pages/${slug}`),
+          axios.get(`${API}/authors/by-slug/petar`).catch(() => null),
+        ]);
+        setPage(pageRes.data);
+        if (authorRes?.data) setAuthor(authorRes.data);
       } catch {} finally { setLoading(false); }
     };
-    fetchPage();
+    fetchData();
     window.scrollTo(0, 0);
   }, [slug]);
 
@@ -69,16 +74,22 @@ export default function EducationArticle() {
         </h1>
 
         {/* Author + Trust Block */}
-        <div className="flex items-center gap-3 pb-4 mb-6 border-b border-[#232B3E]" data-testid="author-trust-block">
-          <div className="w-9 h-9 rounded-full bg-[#D4AF37] flex items-center justify-center text-[#0A0D14] font-bold text-sm flex-shrink-0">P</div>
+        <Link to={author ? `/author/${author.slug}` : '#'} className="flex items-center gap-3 pb-4 mb-6 border-b border-[#232B3E] hover:opacity-90 transition-opacity" data-testid="author-trust-block">
+          <div className="w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {author?.avatar_url ? (
+              <img src={author.avatar_url} alt={author.name || 'Author'} className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-5 h-5 text-[#D4AF37]" />
+            )}
+          </div>
           <div>
-            <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>
+            <p className="text-sm font-semibold text-[#F3F4F6]">{author?.name || 'Petar Jovanovic'}</p>
             <p className="text-xs text-[#9CA3AF]">
               Editor
               {page.updated_at && <> · Updated {new Date(page.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</>}
             </p>
           </div>
-        </div>
+        </Link>
 
         <div className="article-content" dangerouslySetInnerHTML={{ __html: page.content }} />
 
