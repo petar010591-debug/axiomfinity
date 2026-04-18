@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { BookOpen, ArrowRight, Star } from 'lucide-react';
+import { BookOpen, ArrowRight, Star, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import FaqAccordion from '../components/FaqAccordion';
 
@@ -10,17 +10,20 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function EducationPage() {
   const [hub, setHub] = useState(null);
   const [pages, setPages] = useState([]);
+  const [author, setAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [hubRes, pagesRes] = await Promise.all([
+        const [hubRes, pagesRes, authorRes] = await Promise.all([
           axios.get(`${API}/education-hub`).catch(() => ({ data: null })),
           axios.get(`${API}/education-hub/pages`).catch(() => ({ data: [] })),
+          axios.get(`${API}/authors/default`).catch(() => null),
         ]);
         setHub(hubRes.data);
         setPages(pagesRes.data || []);
+        if (authorRes?.data) setAuthor(authorRes.data);
       } catch {} finally { setLoading(false); }
     };
     fetchData();
@@ -44,6 +47,23 @@ export default function EducationPage() {
         <p className="text-lg text-[#9CA3AF] max-w-2xl">
           {hub?.hero_subtitle || 'Learn the basics of cryptocurrency, blockchain, wallets, Bitcoin, Ethereum, and safe investing through beginner-friendly education guides.'}
         </p>
+
+        {/* Author + Trust Block */}
+        {author && (
+          <Link to={`/author/${author.slug}`} className="inline-flex items-center gap-3 mt-5 hover:opacity-90 transition-opacity" data-testid="edu-hub-author">
+            <div className="w-9 h-9 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {author.avatar_url ? (
+                <img src={author.avatar_url} alt={author.name} className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-4 h-4 text-[#D4AF37]" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#F3F4F6]">{author.name}</p>
+              <p className="text-xs text-[#9CA3AF]">Editor</p>
+            </div>
+          </Link>
+        )}
       </motion.div>
 
       {/* SEO Intro Block */}
