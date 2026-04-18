@@ -64,9 +64,21 @@ export default function EducationArticle() {
           <span className="text-xs uppercase tracking-[0.15em] text-[#D4AF37] font-semibold">Education Guide</span>
         </div>
 
-        <h1 className="text-3xl sm:text-4xl font-bold text-[#F3F4F6] mb-8" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
+        <h1 className="text-3xl sm:text-4xl font-bold text-[#F3F4F6] mb-4" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
           {page.title}
         </h1>
+
+        {/* Author + Trust Block */}
+        <div className="flex items-center gap-3 pb-4 mb-6 border-b border-[#232B3E]" data-testid="author-trust-block">
+          <div className="w-9 h-9 rounded-full bg-[#D4AF37] flex items-center justify-center text-[#0A0D14] font-bold text-sm flex-shrink-0">P</div>
+          <div>
+            <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>
+            <p className="text-xs text-[#9CA3AF]">
+              Editor
+              {page.updated_at && <> · Updated {new Date(page.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</>}
+            </p>
+          </div>
+        </div>
 
         <div className="article-content" dangerouslySetInnerHTML={{ __html: page.content }} />
 

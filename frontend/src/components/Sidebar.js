@@ -58,18 +58,40 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* Education Hub - Beginner Guides */}
+      <div className="bg-gradient-to-br from-[#D4AF37]/10 to-[#121620] border border-[#D4AF37]/20 rounded-lg p-5" data-testid="sidebar-education">
+        <div className="flex items-center gap-2 mb-3">
+          <BookOpen className="w-4 h-4 text-[#D4AF37]" />
+          <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#D4AF37]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Learn Crypto</h3>
+        </div>
+        <p className="text-xs text-[#9CA3AF] leading-relaxed mb-3">
+          New to crypto? Start with our beginner-friendly guides.
+        </p>
+        <div className="space-y-2 mb-3">
+          <a href="/education/how-to-buy-bitcoin" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors" data-testid="sidebar-edu-link-1">
+            How to Buy Bitcoin
+          </a>
+          <a href="/education/what-is-cryptocurrency" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors" data-testid="sidebar-edu-link-2">
+            What Is Cryptocurrency?
+          </a>
+          <a href="/education/understanding-crypto-wallets" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors" data-testid="sidebar-edu-link-3">
+            Understanding Crypto Wallets
+          </a>
+        </div>
+        <a href="/education" className="inline-block text-xs font-semibold text-[#D4AF37] hover:underline">
+          View all guides &rarr;
+        </a>
+      </div>
+
       {/* Editor's Pick */}
-      <div className="bg-gradient-to-br from-[#D4AF37]/10 to-[#121620] border border-[#D4AF37]/20 rounded-lg p-5">
+      <div className="bg-[#121620] border border-[#232B3E] rounded-lg p-5">
         <div className="flex items-center gap-2 mb-3">
           <Star className="w-4 h-4 text-[#D4AF37]" />
-          <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#D4AF37]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Editor's Pick</h3>
+          <h3 className="text-sm font-bold uppercase tracking-[0.15em] text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Editor's Pick</h3>
         </div>
         <p className="text-xs text-[#9CA3AF] leading-relaxed">
-          Stay informed with our curated selection of the most important stories in digital finance. Our editorial team handpicks the articles that matter most.
+          Stay informed with our curated selection of the most important stories in digital finance.
         </p>
-        <a href="/education" className="inline-block mt-3 text-xs font-semibold text-[#D4AF37] hover:underline">
-          Explore Education Hub &rarr;
-        </a>
       </div>
     </aside>
   );

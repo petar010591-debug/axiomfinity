@@ -45,6 +45,9 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - [Apr 2026] SSR meta injection — all public pages serve unique title, meta, OG, canonical, JSON-LD in initial HTML
 - [Apr 2026] Pages Manager upgraded: TipTap WYSIWYG editor + FAQ support for all CMS pages
 - [Apr 2026] Education Hub: structured SEO pillar page with 12 beginner articles, 4 sections, featured guide, hub FAQs, per-page FAQs + JSON-LD
+- [Apr 2026] Full SSR content injection: article body, headings, FAQs all present in initial HTML for crawlers
+- [Apr 2026] Author + E-E-A-T trust block on education articles (name, role, updated date)
+- [Apr 2026] Education Hub sidebar block with internal links on homepage/category pages
 
 ## Upcoming Tasks (P2)
 - Category page FAQs — Add FAQ sections to category pages for long-tail SEO

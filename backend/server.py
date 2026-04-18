@@ -1486,8 +1486,8 @@ async def get_index_html_async():
     SSR_INDEX_HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#0A0D14"/><link rel="alternate" type="application/rss+xml" title="AxiomFinity RSS Feed" href="/rss.xml"/><meta property="og:title" content="AxiomFinity"/><meta name="description" content=""/><link rel="icon" type="image/png" href="/logo.png"/><title>AxiomFinity</title></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>window.location.reload();</script></body></html>'
     return SSR_INDEX_HTML
 
-def inject_meta(html: str, title: str, description: str, canonical: str, og_image: str = "", og_type: str = "website", json_ld: str = "", extra_meta: str = "") -> str:
-    """Replace default meta tags in index.html with route-specific ones."""
+def inject_meta(html: str, title: str, description: str, canonical: str, og_image: str = "", og_type: str = "website", json_ld: str = "", extra_meta: str = "", body_content: str = "") -> str:
+    """Replace default meta tags in index.html with route-specific ones. Optionally inject body content for SSR."""
     base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
     og_img = og_image or f"{base_url}/logo512.png"
     t = html_escape(title)
@@ -1519,7 +1519,44 @@ def inject_meta(html: str, title: str, description: str, canonical: str, og_imag
     html = re.sub(r'<meta\s+property="og:[^"]*"[^>]*/?\s*>', '', html)
     # Insert our meta block before </head>
     html = html.replace('</head>', f'{meta_block}\n</head>')
+    # Inject body content into <div id="root"> for full SSR
+    if body_content:
+        html = html.replace('<div id="root"></div>', f'<div id="root">{body_content}</div>')
     return html
+
+
+def build_author_block_html(author_name: str = "Petar Jovanovic", role: str = "Editor", updated_at: str = "") -> str:
+    """Build an author + trust block HTML for E-E-A-T."""
+    date_str = ""
+    if updated_at:
+        try:
+            dt = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
+            date_str = dt.strftime("%B %d, %Y")
+        except Exception:
+            date_str = str(updated_at)[:10]
+    parts = [f'<div style="display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid #232B3E">']
+    parts.append(f'<div style="width:36px;height:36px;border-radius:50%;background:#D4AF37;display:flex;align-items:center;justify-content:center;color:#0A0D14;font-weight:bold;font-size:14px">{html_escape(author_name[0])}</div>')
+    parts.append(f'<div><div style="color:#F3F4F6;font-size:14px;font-weight:600">{html_escape(author_name)}</div>')
+    parts.append(f'<div style="color:#9CA3AF;font-size:12px">{html_escape(role)}')
+    if date_str:
+        parts.append(f' · Updated {date_str}')
+    parts.append('</div></div></div>')
+    return ''.join(parts)
+
+
+def build_faq_html(faqs: list) -> str:
+    """Build FAQ section HTML for SSR content."""
+    if not faqs:
+        return ""
+    items = []
+    for i, faq in enumerate(faqs):
+        q = html_escape(faq.get("question", ""))
+        a = html_escape(faq.get("answer", ""))
+        if q:
+            items.append(f'<div style="border-bottom:1px solid #232B3E;padding:12px 0"><h3 style="color:#F3F4F6;font-size:15px;font-weight:600;margin-bottom:6px">{i+1}. {q}</h3><p style="color:#9CA3AF;font-size:14px;line-height:1.6">{a}</p></div>')
+    if not items:
+        return ""
+    return f'<section style="margin-top:32px"><h2 style="color:#F3F4F6;font-size:20px;font-weight:700;margin-bottom:12px">Frequently Asked Questions</h2>{"".join(items)}</section>'
 
 @app.get("/ssr/page")
 async def ssr_page(path: str = "/"):
@@ -1578,25 +1615,45 @@ async def ssr_page(path: str = "/"):
 
     # ─── EDUCATION HUB ───
     if path == "education":
-        hub = await db.education_hub.find_one({"_id": "config"}, {"_id": 0, "faqs": 1})
+        hub = await db.education_hub.find_one({"_id": "config"}, {"_id": 0})
         faqs = hub.get("faqs", []) if hub else []
         faq_ld = ""
         if faqs:
             faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
             if faq_entries:
                 faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+        # Build full body content for SSR
+        body = '<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
+        body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(hub.get("hero_title","Crypto for Beginners") if hub else "Crypto for Beginners")}</h1>'
+        body += f'<p style="font-size:18px;color:#9CA3AF;margin-bottom:24px">{html_escape(hub.get("hero_subtitle","") if hub else "")}</p>'
+        if hub and hub.get("intro_content"):
+            body += f'<div style="max-width:768px;margin-bottom:32px">{hub["intro_content"]}</div>'
+        # Sections with links
+        if hub and hub.get("sections"):
+            edu_pages = await db.pages.find({"page_type": "educational"}, {"_id": 0, "slug": 1, "title": 1}).to_list(100)
+            slug_title_map = {p["slug"]: p["title"] for p in edu_pages}
+            for section in hub["sections"]:
+                body += f'<section style="margin-bottom:32px"><h2 style="font-size:24px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(section.get("title",""))}</h2>'
+                body += f'<p style="color:#9CA3AF;margin-bottom:16px">{html_escape(section.get("description",""))}</p><ul>'
+                for slug in section.get("slugs", []):
+                    t = slug_title_map.get(slug, slug)
+                    body += f'<li style="margin-bottom:8px"><a href="/education/{html_escape(slug)}" style="color:#D4AF37">{html_escape(t)}</a></li>'
+                body += '</ul></section>'
+        body += build_faq_html(faqs)
+        body += '</main>'
         return HTMLResponse(inject_meta(
             base_html,
             title="Crypto for Beginners: Learn Cryptocurrency and Blockchain | AxiomFinity",
             description="Explore beginner-friendly crypto education guides on Bitcoin, Ethereum, wallets, blockchain, and safe investing. Start learning digital finance with AxiomFinity.",
             canonical=f"{base_url}/education",
             json_ld=faq_ld,
+            body_content=body,
         ))
 
     # ─── EDUCATION ARTICLE PAGES ───
     if path.startswith("education/"):
         edu_slug = path.split("/", 1)[1]
-        page = await db.pages.find_one({"slug": edu_slug, "page_type": "educational"}, {"_id": 0, "title": 1, "meta_title": 1, "meta_description": 1, "content": 1, "faqs": 1})
+        page = await db.pages.find_one({"slug": edu_slug, "page_type": "educational"}, {"_id": 0, "title": 1, "meta_title": 1, "meta_description": 1, "content": 1, "faqs": 1, "updated_at": 1})
         if page:
             title = page.get("meta_title") or page.get("title", "Education")
             description = page.get("meta_description") or ""
@@ -1608,12 +1665,21 @@ async def ssr_page(path: str = "/"):
                 faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
                 if faq_entries:
                     faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            # Build full body content for SSR
+            body = '<article style="max-width:768px;margin:0 auto;padding:32px 16px">'
+            body += f'<nav style="font-size:12px;color:#6B7280;margin-bottom:16px"><a href="/">Home</a> / <a href="/education">Education</a> / <span>{html_escape(page.get("title",""))}</span></nav>'
+            body += f'<h1 style="font-size:32px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(page.get("title",""))}</h1>'
+            body += build_author_block_html("Petar Jovanovic", "Editor", page.get("updated_at", ""))
+            body += f'<div>{page.get("content", "")}</div>'
+            body += build_faq_html(faqs)
+            body += '</article>'
             return HTMLResponse(inject_meta(
                 base_html,
                 title=title if '|' in title else f"{title} | AxiomFinity",
                 description=description[:200],
                 canonical=f"{base_url}/education/{edu_slug}",
                 json_ld=faq_ld,
+                body_content=body,
             ))
 
     # ─── LATEST ───
@@ -1678,7 +1744,7 @@ async def ssr_page(path: str = "/"):
         category_slug, article_slug = parts
         article = await db.articles.find_one(
             {"slug": article_slug, **build_public_query()},
-            {"_id": 0, "title": 1, "excerpt": 1, "featured_image": 1, "og_image": 1,
+            {"_id": 0, "title": 1, "excerpt": 1, "content": 1, "featured_image": 1, "og_image": 1,
              "meta_title": 1, "meta_description": 1, "category_slug": 1, "author_name": 1,
              "published_at": 1, "updated_at": 1, "faqs": 1}
         )
@@ -1702,10 +1768,18 @@ async def ssr_page(path: str = "/"):
                 if faq_entries:
                     json_ld += '\n</script>\n<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
 
+            # Build full body content for SSR
+            body = '<article style="max-width:768px;margin:0 auto;padding:32px 16px">'
+            body += f'<h1 style="font-size:32px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(article.get("title",""))}</h1>'
+            body += build_author_block_html(author, "Author", modified_at)
+            body += f'<div>{article.get("content", "")}</div>'
+            body += build_faq_html(faqs)
+            body += '</article>'
+
             return HTMLResponse(inject_meta(
                 base_html, title=f"{title} | AxiomFinity", description=description[:200],
                 canonical=canonical, og_image=image, og_type="article",
-                json_ld=json_ld, extra_meta=extra,
+                json_ld=json_ld, extra_meta=extra, body_content=body,
             ))
 
     # ─── EDUCATION SUBPAGES ───
