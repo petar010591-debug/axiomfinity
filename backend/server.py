@@ -1572,6 +1572,30 @@ def build_faq_html(faqs: list) -> str:
         return ""
     return f'<section style="margin-top:32px"><h2 style="color:#F3F4F6;font-size:20px;font-weight:700;margin-bottom:12px">Frequently Asked Questions</h2>{"".join(items)}</section>'
 
+
+def build_faq_jsonld(faqs: list) -> str:
+    """Build valid FAQ JSON-LD using json.dumps for proper escaping."""
+    import json as _json
+    valid_faqs = [f for f in faqs if f.get("question", "").strip() and f.get("answer", "").strip()]
+    if not valid_faqs:
+        return ""
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": faq["question"].strip(),
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": faq["answer"].strip()
+                }
+            }
+            for faq in valid_faqs
+        ]
+    }
+    return _json.dumps(schema, ensure_ascii=False)
+
 @app.get("/ssr/page")
 async def ssr_page(path: str = "/"):
     """SSR meta injection endpoint. Nginx proxies public routes here."""
@@ -1599,9 +1623,7 @@ async def ssr_page(path: str = "/"):
         faqs = page.get("faqs", []) if page else []
         faq_ld = ""
         if faqs:
-            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
-            if faq_entries:
-                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            faq_ld = build_faq_jsonld(faqs)
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{title} | AxiomFinity",
@@ -1616,9 +1638,7 @@ async def ssr_page(path: str = "/"):
         faqs = page.get("faqs", []) if page else []
         faq_ld = ""
         if faqs:
-            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
-            if faq_entries:
-                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            faq_ld = build_faq_jsonld(faqs)
         return HTMLResponse(inject_meta(
             base_html,
             title="Contact Us | AxiomFinity",
@@ -1633,13 +1653,14 @@ async def ssr_page(path: str = "/"):
         faqs = hub.get("faqs", []) if hub else []
         faq_ld = ""
         if faqs:
-            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
-            if faq_entries:
-                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            faq_ld = build_faq_jsonld(faqs)
         # Build full body content for SSR
         body = '<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
         body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(hub.get("hero_title","Crypto for Beginners") if hub else "Crypto for Beginners")}</h1>'
-        body += f'<p style="font-size:18px;color:#9CA3AF;margin-bottom:24px">{html_escape(hub.get("hero_subtitle","") if hub else "")}</p>'
+        body += f'<p style="font-size:18px;color:#9CA3AF;margin-bottom:16px">{html_escape(hub.get("hero_subtitle","") if hub else "")}</p>'
+        default_author = await db.users.find_one({"role": {"$in": ["super_admin", "admin"]}}, {"name": 1, "slug": 1})
+        hub_author_name = default_author.get("name", "AxiomFinity") if default_author else "AxiomFinity"
+        body += build_author_block_html(hub_author_name, "Editor", "")
         if hub and hub.get("intro_content"):
             body += f'<div style="max-width:768px;margin-bottom:32px">{hub["intro_content"]}</div>'
         # Sections with links
@@ -1676,9 +1697,7 @@ async def ssr_page(path: str = "/"):
             faqs = page.get("faqs", [])
             faq_ld = ""
             if faqs:
-                faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
-                if faq_entries:
-                    faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+                faq_ld = build_faq_jsonld(faqs)
             # Build full body content for SSR
             body = '<article style="max-width:768px;margin:0 auto;padding:32px 16px">'
             body += f'<nav style="font-size:12px;color:#6B7280;margin-bottom:16px"><a href="/">Home</a> / <a href="/education">Education</a> / <span>{html_escape(page.get("title",""))}</span></nav>'
@@ -1715,9 +1734,7 @@ async def ssr_page(path: str = "/"):
         faqs = page.get("faqs", []) if page else []
         faq_ld = ""
         if faqs:
-            faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
-            if faq_entries:
-                faq_ld = '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            faq_ld = build_faq_jsonld(faqs)
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{title} | AxiomFinity",
@@ -1779,10 +1796,9 @@ async def ssr_page(path: str = "/"):
 
             # Add FAQ schema if present
             faqs = article.get("faqs", [])
-            if faqs:
-                faq_entries = ",".join(['{"@type":"Question","name":"' + html_escape(f.get("question","")).replace('"', '\\"') + '","acceptedAnswer":{"@type":"Answer","text":"' + html_escape(f.get("answer","")).replace('"', '\\"') + '"}}' for f in faqs if f.get("question")])
-                if faq_entries:
-                    json_ld += '\n</script>\n<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[' + faq_entries + ']}'
+            faq_ld_article = build_faq_jsonld(faqs)
+            if faq_ld_article:
+                json_ld += '\n</script>\n<script type="application/ld+json">' + faq_ld_article
 
             # Build full body content for SSR
             body = '<article style="max-width:768px;margin:0 auto;padding:32px 16px">'
