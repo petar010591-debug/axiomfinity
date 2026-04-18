@@ -19,7 +19,7 @@ export default function EducationArticle() {
       try {
         const [pageRes, authorRes] = await Promise.all([
           axios.get(`${API}/pages/${slug}`),
-          axios.get(`${API}/authors/by-slug/petar`).catch(() => null),
+          axios.get(`${API}/authors/default`).catch(() => null),
         ]);
         setPage(pageRes.data);
         if (authorRes?.data) setAuthor(authorRes.data);
@@ -90,6 +90,13 @@ export default function EducationArticle() {
             </p>
           </div>
         </Link>
+
+        {/* Featured Image */}
+        {page.featured_image && (
+          <div className="mb-8 rounded-lg overflow-hidden" data-testid="edu-featured-image">
+            <img src={page.featured_image} alt={page.title} className="w-full h-auto object-cover rounded-lg" />
+          </div>
+        )}
 
         <div className="article-content" dangerouslySetInnerHTML={{ __html: page.content }} />
 

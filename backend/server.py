@@ -159,6 +159,7 @@ class ArticleCreate(BaseModel):
     og_image: Optional[str] = ""
     faqs: List[dict] = []  # [{question: str, answer: str}, ...]
     custom_slug: Optional[str] = ""
+    internal_links: Optional[dict] = None  # {title: str, links: [{text: str, url: str}]}
 
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -190,6 +191,7 @@ class PageCreate(BaseModel):
     faqs: List[dict] = []
     meta_title: Optional[str] = ""
     meta_description: Optional[str] = ""
+    featured_image: Optional[str] = ""
 
 class HomepageSlotsUpdate(BaseModel):
     hero_primary: Optional[str] = None
@@ -577,6 +579,7 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         "meta_title": data.meta_title or data.title,
         "meta_description": data.meta_description or data.excerpt,
         "faqs": data.faqs,
+        "internal_links": data.internal_links,
         "created_at": now,
         "updated_at": now,
     }
@@ -623,6 +626,7 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         "meta_title": data.meta_title or data.title,
         "meta_description": data.meta_description or data.excerpt,
         "faqs": data.faqs,
+        "internal_links": data.internal_links,
         "updated_at": now,
     }
     if data.status == "published" and existing.get("status") != "published":
@@ -710,7 +714,7 @@ async def admin_delete_tag(tag_id: str, user: dict = Depends(get_current_user)):
 async def admin_create_page(data: PageCreate, user: dict = Depends(get_current_user)):
     slug = data.slug or slugify(data.title)
     now = datetime.now(timezone.utc).isoformat()
-    doc = {"title": data.title, "slug": slug, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "meta_title": data.meta_title or "", "meta_description": data.meta_description or "", "created_at": now, "updated_at": now}
+    doc = {"title": data.title, "slug": slug, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "meta_title": data.meta_title or "", "meta_description": data.meta_description or "", "featured_image": data.featured_image or "", "created_at": now, "updated_at": now}
     result = await db.pages.insert_one(doc)
     doc["id"] = str(result.inserted_id)
     doc.pop("_id", None)
@@ -719,7 +723,7 @@ async def admin_create_page(data: PageCreate, user: dict = Depends(get_current_u
 @api_router.put("/admin/pages/{page_id}")
 async def admin_update_page(page_id: str, data: PageCreate, user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
-    update = {"title": data.title, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "meta_title": data.meta_title or "", "meta_description": data.meta_description or "", "updated_at": now}
+    update = {"title": data.title, "content": data.content, "page_type": data.page_type, "faqs": data.faqs, "meta_title": data.meta_title or "", "meta_description": data.meta_description or "", "featured_image": data.featured_image or "", "updated_at": now}
     if data.slug:
         update["slug"] = data.slug
     await db.pages.update_one({"_id": ObjectId(page_id)}, {"$set": update})
@@ -955,6 +959,16 @@ async def ensure_unique_user_slug(name: str, exclude_id=None) -> str:
             return slug
         slug = f"{base}-{counter}"
         counter += 1
+
+@api_router.get("/authors/default")
+async def get_default_author():
+    """Get the first super_admin/admin as the default author for education content."""
+    user = await db.users.find_one({"role": {"$in": ["super_admin", "admin"]}}, {"password_hash": 0})
+    if not user:
+        user = await db.users.find_one({}, {"password_hash": 0})
+    if not user:
+        return {"name": "AxiomFinity", "slug": "", "avatar_url": ""}
+    return serialize_doc(user)
 
 @api_router.get("/authors/by-slug/{slug}")
 async def get_author_by_slug(slug: str):

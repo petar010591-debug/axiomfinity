@@ -221,6 +221,24 @@ export default function ArticlePage() {
           "mainEntityOfPage": { "@type": "WebPage", "@id": `https://www.axiomfinity.com/${article.category_slug}/${article.slug}` }
         }) }} />
 
+        {/* Internal Links Box */}
+        {article.internal_links?.title && article.internal_links?.links?.length > 0 && (
+          <div className="my-8 bg-[#121620] border border-[#D4AF37]/20 rounded-lg p-5" data-testid="internal-links-box">
+            <h3 className="text-lg font-bold text-[#F3F4F6] mb-3" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
+              {article.internal_links.title}
+            </h3>
+            <ul className="space-y-2">
+              {article.internal_links.links.filter(l => l.text && l.url).map((link, i) => (
+                <li key={i}>
+                  <Link to={link.url} className="text-[#D4AF37] hover:underline text-sm" data-testid={`internal-link-${i}`}>
+                    {link.text}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* FAQs */}
         <FaqAccordion faqs={article.faqs} />
 

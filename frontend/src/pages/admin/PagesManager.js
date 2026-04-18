@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { FileEdit, Plus, Trash2, Save, ArrowLeft, Loader2, HelpCircle, X } from 'lucide-react';
+import { FileEdit, Plus, Trash2, Save, ArrowLeft, Loader2, HelpCircle, X, Upload, Image as ImageIcon } from 'lucide-react';
 import TipTapEditor from '../../components/TipTapEditor';
+import MediaLibrary from '../../components/MediaLibrary';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function PagesManager() {
   const [pages, setPages] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ title: '', slug: '', content: '', page_type: 'legal', faqs: [], meta_title: '', meta_description: '' });
+  const [form, setForm] = useState({ title: '', slug: '', content: '', page_type: 'legal', faqs: [], meta_title: '', meta_description: '', featured_image: '' });
   const [saving, setSaving] = useState(false);
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
 
   const fetchPages = async () => {
     try {
@@ -31,12 +33,13 @@ export default function PagesManager() {
       faqs: page.faqs || [],
       meta_title: page.meta_title || '',
       meta_description: page.meta_description || '',
+      featured_image: page.featured_image || '',
     });
   };
 
   const startNew = () => {
     setEditing('new');
-    setForm({ title: '', slug: '', content: '', page_type: 'legal', faqs: [], meta_title: '', meta_description: '' });
+    setForm({ title: '', slug: '', content: '', page_type: 'legal', faqs: [], meta_title: '', meta_description: '', featured_image: '' });
   };
 
   const handleSave = async () => {
@@ -101,6 +104,26 @@ export default function PagesManager() {
               <option value="educational">Educational</option>
               <option value="about">About</option>
             </select>
+          </div>
+
+          {/* Featured Image */}
+          <div>
+            <label className="block text-sm text-[#9CA3AF] mb-1">Featured Image</label>
+            {form.featured_image ? (
+              <div className="relative rounded-lg overflow-hidden mb-2">
+                <img src={form.featured_image} alt="" className="w-full h-48 object-cover rounded-lg" />
+                <button type="button" onClick={() => setForm({ ...form, featured_image: '' })}
+                  className="absolute top-2 right-2 p-1.5 bg-[#0A0D14]/80 rounded-lg text-[#EF4444] hover:bg-[#EF4444]/20">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setShowMediaLibrary(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-8 border-2 border-dashed border-[#232B3E] rounded-lg text-sm text-[#6B7280] hover:border-[#D4AF37]/50 hover:text-[#D4AF37] transition-colors"
+                data-testid="page-featured-image-btn">
+                <ImageIcon className="w-5 h-5" /> Upload Featured Image
+              </button>
+            )}
           </div>
 
           {/* TipTap WYSIWYG Content Editor */}
@@ -192,6 +215,14 @@ export default function PagesManager() {
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Page
           </button>
         </div>
+
+        {/* Media Library Modal */}
+        {showMediaLibrary && (
+          <MediaLibrary
+            onSelect={(url) => { setForm(prev => ({ ...prev, featured_image: url })); setShowMediaLibrary(false); }}
+            onClose={() => setShowMediaLibrary(false)}
+          />
+        )}
       </div>
     );
   }
