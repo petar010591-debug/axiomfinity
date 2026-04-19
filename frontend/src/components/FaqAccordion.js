@@ -42,19 +42,6 @@ export default function FaqAccordion({ faqs = [] }) {
         </div>
       </div>
 
-      {/* FAQ JSON-LD structured data */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": faqs.filter(f => f.question?.trim() && f.answer?.trim()).map(faq => ({
-          "@type": "Question",
-          "name": faq.question.trim(),
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": faq.answer.trim()
-          }
-        }))
-      }) }} />
     </section>
   );
 }
