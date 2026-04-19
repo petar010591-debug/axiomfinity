@@ -83,7 +83,7 @@ export default function EducationArticle() {
             )}
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#F3F4F6]">{author?.name || 'Petar Jovanovic'}</p>
+            <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>
             <p className="text-xs text-[#9CA3AF]">
               Editor
               {page.updated_at && <> · Updated {new Date(page.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</>}

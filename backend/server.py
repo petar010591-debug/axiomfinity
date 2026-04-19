@@ -1659,7 +1659,7 @@ async def ssr_page(path: str = "/"):
         body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(hub.get("hero_title","Crypto for Beginners") if hub else "Crypto for Beginners")}</h1>'
         body += f'<p style="font-size:18px;color:#9CA3AF;margin-bottom:16px">{html_escape(hub.get("hero_subtitle","") if hub else "")}</p>'
         default_author = await db.users.find_one({"role": {"$in": ["super_admin", "admin"]}}, {"name": 1, "slug": 1})
-        hub_author_name = default_author.get("name", "AxiomFinity") if default_author else "AxiomFinity"
+        hub_author_name = "Petar Jovanovic"
         body += build_author_block_html(hub_author_name, "Editor", "")
         if hub and hub.get("intro_content"):
             body += f'<div style="max-width:768px;margin-bottom:32px">{hub["intro_content"]}</div>'
@@ -1702,9 +1702,7 @@ async def ssr_page(path: str = "/"):
             body = '<article style="max-width:768px;margin:0 auto;padding:32px 16px">'
             body += f'<nav style="font-size:12px;color:#6B7280;margin-bottom:16px"><a href="/">Home</a> / <a href="/education">Education</a> / <span>{html_escape(page.get("title",""))}</span></nav>'
             body += f'<h1 style="font-size:32px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(page.get("title",""))}</h1>'
-            default_author = await db.users.find_one({"role": {"$in": ["super_admin", "admin"]}}, {"name": 1, "slug": 1})
-            author_name = default_author.get("name", "AxiomFinity") if default_author else "AxiomFinity"
-            body += build_author_block_html(author_name, "Editor", page.get("updated_at", ""))
+            body += build_author_block_html("Petar Jovanovic", "Editor", page.get("updated_at", ""))
             body += f'<div>{page.get("content", "")}</div>'
             body += build_faq_html(faqs)
             body += '</article>'

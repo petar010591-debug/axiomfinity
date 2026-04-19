@@ -59,7 +59,7 @@ export default function EducationPage() {
               )}
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#F3F4F6]">{author.name}</p>
+              <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>
               <p className="text-xs text-[#9CA3AF]">Editor</p>
             </div>
           </Link>
