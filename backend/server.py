@@ -1541,6 +1541,7 @@ def inject_meta(html: str, title: str, description: str, canonical: str, og_imag
 
 def build_author_block_html(author_name: str = "Petar Jovanovic", role: str = "Editor", updated_at: str = "") -> str:
     """Build an author + trust block HTML for E-E-A-T."""
+    avatar_url = "https://pub-22d347da1a3246548a469179e0bb9db5.r2.dev/finnews/petar-jovanovic-avatar.png"
     date_str = ""
     if updated_at:
         try:
@@ -1548,13 +1549,13 @@ def build_author_block_html(author_name: str = "Petar Jovanovic", role: str = "E
             date_str = dt.strftime("%B %d, %Y")
         except Exception:
             date_str = str(updated_at)[:10]
-    parts = [f'<div style="display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid #232B3E">']
-    parts.append(f'<div style="width:36px;height:36px;border-radius:50%;background:#D4AF37;display:flex;align-items:center;justify-content:center;color:#0A0D14;font-weight:bold;font-size:14px">{html_escape(author_name[0])}</div>')
+    parts = [f'<a href="/author/petar-jovanovic" style="display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid #232B3E;text-decoration:none">']
+    parts.append(f'<img src="{avatar_url}" alt="{html_escape(author_name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover"/>')
     parts.append(f'<div><div style="color:#F3F4F6;font-size:14px;font-weight:600">{html_escape(author_name)}</div>')
     parts.append(f'<div style="color:#9CA3AF;font-size:12px">{html_escape(role)}')
     if date_str:
         parts.append(f' · Updated {date_str}')
-    parts.append('</div></div></div>')
+    parts.append('</div></div></a>')
     return ''.join(parts)
 
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, BookOpen, User } from 'lucide-react';
+import { ArrowLeft, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import FaqAccordion from '../components/FaqAccordion';
 
@@ -10,19 +10,14 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function EducationArticle() {
   const { slug } = useParams();
   const [page, setPage] = useState(null);
-  const [author, setAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [pageRes, authorRes] = await Promise.all([
-          axios.get(`${API}/pages/${slug}`),
-          axios.get(`${API}/authors/default`).catch(() => null),
-        ]);
-        setPage(pageRes.data);
-        if (authorRes?.data) setAuthor(authorRes.data);
+        const { data } = await axios.get(`${API}/pages/${slug}`);
+        setPage(data);
       } catch {} finally { setLoading(false); }
     };
     fetchData();
@@ -74,13 +69,9 @@ export default function EducationArticle() {
         </h1>
 
         {/* Author + Trust Block */}
-        <Link to={author ? `/author/${author.slug}` : '#'} className="flex items-center gap-3 pb-4 mb-6 border-b border-[#232B3E] hover:opacity-90 transition-opacity" data-testid="author-trust-block">
+        <Link to="/author/petar-jovanovic" className="flex items-center gap-3 pb-4 mb-6 border-b border-[#232B3E] hover:opacity-90 transition-opacity" data-testid="author-trust-block">
           <div className="w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-            {author?.avatar_url ? (
-              <img src={author.avatar_url} alt={author.name || 'Author'} className="w-full h-full object-cover" />
-            ) : (
-              <User className="w-5 h-5 text-[#D4AF37]" />
-            )}
+            <img src="https://pub-22d347da1a3246548a469179e0bb9db5.r2.dev/finnews/petar-jovanovic-avatar.png" alt="Petar Jovanovic" className="w-full h-full object-cover" />
           </div>
           <div>
             <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>

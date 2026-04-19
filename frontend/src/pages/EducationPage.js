@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { BookOpen, ArrowRight, Star, User } from 'lucide-react';
+import { BookOpen, ArrowRight, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
 import FaqAccordion from '../components/FaqAccordion';
 
@@ -10,20 +10,17 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function EducationPage() {
   const [hub, setHub] = useState(null);
   const [pages, setPages] = useState([]);
-  const [author, setAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [hubRes, pagesRes, authorRes] = await Promise.all([
+        const [hubRes, pagesRes] = await Promise.all([
           axios.get(`${API}/education-hub`).catch(() => ({ data: null })),
           axios.get(`${API}/education-hub/pages`).catch(() => ({ data: [] })),
-          axios.get(`${API}/authors/default`).catch(() => null),
         ]);
         setHub(hubRes.data);
         setPages(pagesRes.data || []);
-        if (authorRes?.data) setAuthor(authorRes.data);
       } catch {} finally { setLoading(false); }
     };
     fetchData();
@@ -49,21 +46,15 @@ export default function EducationPage() {
         </p>
 
         {/* Author + Trust Block */}
-        {author && (
-          <Link to={`/author/${author.slug}`} className="inline-flex items-center gap-3 mt-5 hover:opacity-90 transition-opacity" data-testid="edu-hub-author">
-            <div className="w-9 h-9 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden flex-shrink-0">
-              {author.avatar_url ? (
-                <img src={author.avatar_url} alt={author.name} className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-4 h-4 text-[#D4AF37]" />
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>
-              <p className="text-xs text-[#9CA3AF]">Editor</p>
-            </div>
-          </Link>
-        )}
+        <Link to="/author/petar-jovanovic" className="inline-flex items-center gap-3 mt-5 hover:opacity-90 transition-opacity" data-testid="edu-hub-author">
+          <div className="w-9 h-9 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+            <img src="https://pub-22d347da1a3246548a469179e0bb9db5.r2.dev/finnews/petar-jovanovic-avatar.png" alt="Petar Jovanovic" className="w-full h-full object-cover" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#F3F4F6]">Petar Jovanovic</p>
+            <p className="text-xs text-[#9CA3AF]">Editor</p>
+          </div>
+        </Link>
       </motion.div>
 
       {/* SEO Intro Block */}
