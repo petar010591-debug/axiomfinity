@@ -2023,7 +2023,7 @@ async def ssr_page(path: str = "/"):
         # Build body content
         body = f'<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
         body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(cat_name)} News &amp; Analysis</h1>'
-        body += f'<p style="font-size:16px;color:#9CA3AF;margin-bottom:24px;max-width:768px">{html_escape(cat_desc)}</p>'
+        body += f'<div style="font-size:15px;color:#9CA3AF;margin-bottom:24px;max-width:768px;line-height:1.7">{cat_desc}</div>'
         if cat_articles:
             body += '<ul style="list-style:none;padding:0">'
             for ca in cat_articles:

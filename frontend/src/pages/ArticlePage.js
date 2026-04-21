@@ -247,7 +247,7 @@ export default function ArticlePage() {
           <div className="flex items-center gap-2 flex-wrap mt-8 pt-6 border-t border-[#232B3E]">
             <Tag className="w-4 h-4 text-[#6B7280]" />
             {article.tags.map(tag => (
-              <Link key={tag} to={`/search?q=${tag}`} className="px-3 py-1 text-xs font-medium text-[#9CA3AF] bg-[#1C2230] rounded-full hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors">
+              <Link key={tag} to={`/tag/${tag.toLowerCase().replace(/\s+/g, '-')}`} className="px-3 py-1 text-xs font-medium text-[#9CA3AF] bg-[#1C2230] rounded-full hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors">
                 {tag}
               </Link>
             ))}
