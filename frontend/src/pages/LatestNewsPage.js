@@ -50,7 +50,11 @@ export default function LatestNewsPage() {
       <h1 className="text-3xl sm:text-4xl font-bold text-[#F3F4F6] mb-2" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
         {activeCategory ? categories.find(c => c.slug === activeCategory)?.name || 'Latest News' : 'Latest News'}
       </h1>
-      <p className="text-[#9CA3AF] mb-8">Stay updated with the latest in financial news and crypto markets.</p>
+      <p className="text-[#9CA3AF] mb-8">
+        {activeCategory
+          ? (categories.find(c => c.slug === activeCategory)?.description || 'Stay updated with the latest in financial news and crypto markets.')
+          : 'Stay updated with the latest in financial news and crypto markets.'}
+      </p>
 
       {/* Category Filter */}
       <div className="flex items-center gap-2 flex-wrap mb-8" data-testid="category-filter">
