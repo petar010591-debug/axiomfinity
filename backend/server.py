@@ -385,7 +385,7 @@ async def search_articles(q: str = Query("", min_length=1), page: int = 1, limit
 # ─── PUBLIC CATEGORY / TAG ROUTES ───
 @api_router.get("/categories")
 async def get_categories():
-    cats = await db.categories.find({}, {"_id": 1, "name": 1, "slug": 1, "description": 1}).to_list(100)
+    cats = await db.categories.find({}, {"_id": 1, "name": 1, "slug": 1, "description": 1, "display_title": 1}).to_list(100)
     return serialize_list(cats)
 
 @api_router.get("/tags")
