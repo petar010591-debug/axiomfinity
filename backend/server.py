@@ -1155,7 +1155,9 @@ async def sitemap():
     urls.append(f'  <url><loc>{base_url}/contact</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>')
 
     for cat in categories:
-        urls.append(f'  <url><loc>{base_url}/category/{cat["slug"]}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>')
+        if cat["slug"] in ("sponsored", "press-releases", "press-release"):
+            continue
+        urls.append(f'  <url><loc>{base_url}/{cat["slug"]}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>')
 
     for article in articles:
         slug = article.get("slug", "")
@@ -1166,12 +1168,19 @@ async def sitemap():
 
     for pg in pages:
         pg_slug = pg["slug"]
+        lastmod = pg.get("updated_at", "")
+        mod_tag = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
         if pg.get("page_type") == "educational":
-            lastmod = pg.get("updated_at", "")
-            mod_tag = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
             urls.append(f'  <url><loc>{base_url}/education/{pg_slug}</loc>{mod_tag}<changefreq>monthly</changefreq><priority>0.7</priority></url>')
-        else:
-            urls.append(f'  <url><loc>{base_url}/page/{pg_slug}</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>')
+        elif pg_slug in ("about", "contact"):
+            pass  # Already added above
+        elif pg_slug in ("privacy-policy", "terms-and-conditions", "financial-disclaimer"):
+            urls.append(f'  <url><loc>{base_url}/{pg_slug}</loc>{mod_tag}<changefreq>monthly</changefreq><priority>0.3</priority></url>')
+
+    # Author pages
+    authors = await db.users.find({"slug": {"$exists": True, "$ne": ""}}, {"slug": 1, "name": 1}).to_list(100)
+    for author in authors:
+        urls.append(f'  <url><loc>{base_url}/author/{author["slug"]}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>')
 
     xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -1638,9 +1647,13 @@ def inject_meta(html: str, title: str, description: str, canonical: str, og_imag
     html = re.sub(r'<meta\s+property="og:[^"]*"[^>]*/?\s*>', '', html)
     # Insert our meta block before </head>
     html = html.replace('</head>', f'{meta_block}\n</head>')
-    # Inject body content into <div id="root"> for full SSR
+    # Inject body content + footer into <div id="root"> for full SSR
     if body_content:
-        html = html.replace('<div id="root"></div>', f'<div id="root">{body_content}</div>')
+        footer_html = f'''<footer style="margin-top:48px;padding:32px 16px;border-top:1px solid #232B3E;text-align:center;font-size:12px;color:#6B7280">
+<nav style="margin-bottom:12px"><a href="/" style="color:#9CA3AF;margin:0 8px">Home</a><a href="/latest" style="color:#9CA3AF;margin:0 8px">Latest</a><a href="/crypto" style="color:#9CA3AF;margin:0 8px">Crypto</a><a href="/markets" style="color:#9CA3AF;margin:0 8px">Markets</a><a href="/education" style="color:#9CA3AF;margin:0 8px">Education</a><a href="/about" style="color:#9CA3AF;margin:0 8px">About</a><a href="/contact" style="color:#9CA3AF;margin:0 8px">Contact</a></nav>
+<nav style="margin-bottom:12px"><a href="/privacy-policy" style="color:#6B7280;margin:0 6px">Privacy Policy</a><a href="/terms-and-conditions" style="color:#6B7280;margin:0 6px">Terms</a><a href="/financial-disclaimer" style="color:#6B7280;margin:0 6px">Disclaimer</a></nav>
+<p>&copy; {datetime.now().year} AxiomFinity. All rights reserved.</p></footer>'''
+        html = html.replace('<div id="root"></div>', f'<div id="root">{body_content}{footer_html}</div>')
     return html
 
 
@@ -1702,6 +1715,25 @@ def build_faq_jsonld(faqs: list) -> str:
     }
     return _json.dumps(schema, ensure_ascii=False)
 
+
+def build_breadcrumb_jsonld(items: list) -> str:
+    """Build BreadcrumbList JSON-LD. items = [(name, url), ...]"""
+    import json as _json
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": i + 1,
+                "name": name,
+                "item": url
+            }
+            for i, (name, url) in enumerate(items)
+        ]
+    }
+    return _json.dumps(schema, ensure_ascii=False)
+
 @app.get("/ssr/page")
 async def ssr_page(path: str = "/"):
     """SSR meta injection endpoint. Nginx proxies public routes here."""
@@ -1714,12 +1746,42 @@ async def ssr_page(path: str = "/"):
 
     # ─── HOMEPAGE ───
     if path == "" or path == "index.html":
+        import json as _json
+        website_schema = _json.dumps({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "AxiomFinity",
+            "url": base_url,
+            "description": "Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage.",
+            "publisher": {"@type": "Organization", "name": "AxiomFinity", "logo": {"@type": "ImageObject", "url": f"{base_url}/logo192.png"}},
+            "potentialAction": {
+                "@type": "SearchAction",
+                "target": {"@type": "EntryPoint", "urlTemplate": f"{base_url}/search?q={{search_term_string}}"},
+                "query-input": "required name=search_term_string"
+            }
+        }, ensure_ascii=False)
+        org_schema = _json.dumps({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "AxiomFinity",
+            "url": base_url,
+            "logo": f"{base_url}/logo192.png",
+            "description": "AxiomFinity is a digital finance news platform covering cryptocurrency, Bitcoin, altcoins, blockchain, DeFi, and traditional financial markets.",
+            "foundingDate": "2026",
+            "sameAs": [],
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "email": "petar@axiomfinity.com",
+                "contactType": "editorial"
+            }
+        }, ensure_ascii=False)
+        combined = website_schema + '\n</script>\n<script type="application/ld+json">' + org_schema
         return HTMLResponse(inject_meta(
             base_html,
             title="Crypto News Today, Bitcoin, Altcoins, Stocks & Metals Analysis | AxiomFinity",
             description="Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage. Stay ahead with AxiomFinity.",
             canonical=base_url,
-            json_ld='{"@context":"https://schema.org","@type":"WebSite","name":"AxiomFinity","url":"' + base_url + '","description":"Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage.","publisher":{"@type":"Organization","name":"AxiomFinity","logo":{"@type":"ImageObject","url":"' + base_url + '/logo192.png"}}}'
+            json_ld=combined,
         ))
 
     # ─── ABOUT ───
@@ -1812,12 +1874,24 @@ async def ssr_page(path: str = "/"):
             body += f'<div>{page.get("content", "")}</div>'
             body += build_faq_html(faqs)
             body += '</article>'
+            # Add breadcrumb schema
+            breadcrumb_ld = build_breadcrumb_jsonld([
+                ("Home", base_url),
+                ("Education", f"{base_url}/education"),
+                (page.get("title", ""), f"{base_url}/education/{edu_slug}"),
+            ])
+            combined_ld = faq_ld
+            if combined_ld:
+                combined_ld += '\n</script>\n<script type="application/ld+json">' + breadcrumb_ld
+            else:
+                combined_ld = breadcrumb_ld
+
             return HTMLResponse(inject_meta(
                 base_html,
                 title=title if '|' in title else f"{title} | AxiomFinity",
                 description=description[:200],
                 canonical=f"{base_url}/education/{edu_slug}",
-                json_ld=faq_ld,
+                json_ld=combined_ld,
                 body_content=body,
             ))
 
@@ -1868,11 +1942,56 @@ async def ssr_page(path: str = "/"):
     cat_map = {c["slug"]: c for c in categories_cache}
     if path in cat_map:
         cat = cat_map[path]
+        cat_name = cat['name']
+        cat_desc = cat.get("description", f"Latest {cat_name.lower()} news, analysis, and insights from AxiomFinity.")
+
+        # Fetch recent articles for SSR content
+        cat_articles = await db.articles.find(
+            {"category_slug": path, **build_public_query()},
+            {"_id": 0, "title": 1, "slug": 1, "excerpt": 1, "published_at": 1}
+        ).sort("published_at", -1).limit(20).to_list(20)
+
+        # Build body content
+        body = f'<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
+        body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(cat_name)} News &amp; Analysis</h1>'
+        body += f'<p style="font-size:16px;color:#9CA3AF;margin-bottom:24px;max-width:768px">{html_escape(cat_desc)}</p>'
+        if cat_articles:
+            body += '<ul style="list-style:none;padding:0">'
+            for ca in cat_articles:
+                ca_link = f"/{path}/{ca['slug']}"
+                ca_title = html_escape(ca.get("title", ""))
+                ca_excerpt = html_escape(ca.get("excerpt", "")[:150])
+                body += f'<li style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #232B3E">'
+                body += f'<a href="{ca_link}" style="color:#D4AF37;font-size:17px;font-weight:600">{ca_title}</a>'
+                if ca_excerpt:
+                    body += f'<p style="color:#9CA3AF;font-size:14px;margin-top:4px">{ca_excerpt}</p>'
+                body += '</li>'
+            body += '</ul>'
+        body += '</main>'
+
+        # CollectionPage + BreadcrumbList schema
+        import json as _json
+        collection_schema = _json.dumps({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": f"{cat_name} News & Analysis",
+            "description": cat_desc,
+            "url": f"{base_url}/{path}",
+            "publisher": {"@type": "Organization", "name": "AxiomFinity"},
+        }, ensure_ascii=False)
+        breadcrumb_ld = build_breadcrumb_jsonld([
+            ("Home", base_url),
+            (cat_name, f"{base_url}/{path}"),
+        ])
+        combined_ld = collection_schema + '\n</script>\n<script type="application/ld+json">' + breadcrumb_ld
+
         return HTMLResponse(inject_meta(
             base_html,
-            title=f"{cat['name']} News & Analysis | AxiomFinity",
-            description=cat.get("description", f"Latest {cat['name'].lower()} news, analysis, and insights from AxiomFinity.")[:200],
+            title=f"{cat_name} News & Analysis | AxiomFinity",
+            description=cat_desc[:200],
             canonical=f"{base_url}/{path}",
+            json_ld=combined_ld,
+            body_content=body,
         ))
 
     # ─── ARTICLE PAGES (/{category}/{slug}) ───
@@ -1882,40 +2001,91 @@ async def ssr_page(path: str = "/"):
         article = await db.articles.find_one(
             {"slug": article_slug, **build_public_query()},
             {"_id": 0, "title": 1, "excerpt": 1, "content": 1, "featured_image": 1, "og_image": 1,
-             "meta_title": 1, "meta_description": 1, "category_slug": 1, "author_name": 1,
-             "published_at": 1, "updated_at": 1, "faqs": 1}
+             "meta_title": 1, "meta_description": 1, "category_slug": 1, "category_name": 1, "author_name": 1,
+             "published_at": 1, "updated_at": 1, "faqs": 1, "internal_links": 1}
         )
         if article:
+            import json as _json
             title = article.get("meta_title") or article.get("title", "")
             description = article.get("meta_description") or article.get("excerpt", "")
             image = article.get("og_image") or article.get("featured_image", "")
-            canonical = f"{base_url}/{article.get('category_slug', category_slug)}/{article_slug}"
+            cat_slug = article.get('category_slug', category_slug)
+            cat_name = article.get('category_name', cat_slug.title())
+            canonical = f"{base_url}/{cat_slug}/{article_slug}"
             author = article.get("author_name", "AxiomFinity")
             published_at = article.get("published_at", "")
             modified_at = article.get("updated_at", published_at)
 
             extra = f'<meta property="article:author" content="{html_escape(author)}"/>\n<meta property="article:published_time" content="{published_at}"/>\n<meta property="article:modified_time" content="{modified_at}"/>'
 
-            json_ld = '{"@context":"https://schema.org","@type":"NewsArticle","headline":"' + html_escape(title).replace('"', '\\"') + '","description":"' + html_escape(description).replace('"', '\\"') + '","image":["' + html_escape(image) + '"],"datePublished":"' + str(published_at) + '","dateModified":"' + str(modified_at) + '","author":{"@type":"Person","name":"' + html_escape(author) + '"},"publisher":{"@type":"Organization","name":"AxiomFinity","logo":{"@type":"ImageObject","url":"' + base_url + '/logo192.png"}},"mainEntityOfPage":{"@type":"WebPage","@id":"' + canonical + '"}}'
+            # NewsArticle JSON-LD
+            article_schema = _json.dumps({
+                "@context": "https://schema.org",
+                "@type": "NewsArticle",
+                "headline": article.get("title", ""),
+                "description": description,
+                "image": [image] if image else [],
+                "datePublished": str(published_at),
+                "dateModified": str(modified_at),
+                "author": {"@type": "Person", "name": author},
+                "publisher": {"@type": "Organization", "name": "AxiomFinity", "logo": {"@type": "ImageObject", "url": f"{base_url}/logo192.png"}},
+                "mainEntityOfPage": {"@type": "WebPage", "@id": canonical}
+            }, ensure_ascii=False)
 
-            # Add FAQ schema if present
+            # BreadcrumbList
+            breadcrumb_ld = build_breadcrumb_jsonld([
+                ("Home", base_url),
+                (cat_name, f"{base_url}/{cat_slug}"),
+                (article.get("title", ""), canonical),
+            ])
+            article_schema += '\n</script>\n<script type="application/ld+json">' + breadcrumb_ld
+
+            # FAQ schema
             faqs = article.get("faqs", [])
             faq_ld_article = build_faq_jsonld(faqs)
             if faq_ld_article:
-                json_ld += '\n</script>\n<script type="application/ld+json">' + faq_ld_article
+                article_schema += '\n</script>\n<script type="application/ld+json">' + faq_ld_article
 
             # Build full body content for SSR
             body = '<article style="max-width:768px;margin:0 auto;padding:32px 16px">'
+            body += f'<nav style="font-size:12px;color:#6B7280;margin-bottom:16px"><a href="/">Home</a> / <a href="/{cat_slug}">{html_escape(cat_name)}</a> / <span>{html_escape(article.get("title",""))}</span></nav>'
             body += f'<h1 style="font-size:32px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(article.get("title",""))}</h1>'
             body += build_author_block_html(author, "Author", modified_at)
             body += f'<div>{article.get("content", "")}</div>'
+
+            # Internal links box
+            il = article.get("internal_links")
+            if il and il.get("title") and il.get("links"):
+                valid_links = [l for l in il["links"] if l.get("text") and l.get("url")]
+                if valid_links:
+                    body += f'<div style="margin:24px 0;padding:20px;border:1px solid rgba(212,175,55,0.2);border-radius:8px;background:#121620"><h3 style="font-size:18px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(il["title"])}</h3><ul>'
+                    for link in valid_links:
+                        body += f'<li style="margin-bottom:8px"><a href="{html_escape(link["url"])}" style="color:#D4AF37">{html_escape(link["text"])}</a></li>'
+                    body += '</ul></div>'
+
             body += build_faq_html(faqs)
+
+            # Related articles
+            related = await db.articles.find(
+                {"category_slug": cat_slug, "slug": {"$ne": article_slug}, **build_public_query()},
+                {"_id": 0, "title": 1, "slug": 1, "category_slug": 1, "excerpt": 1, "featured_image": 1}
+            ).sort("published_at", -1).limit(4).to_list(4)
+            if related:
+                body += '<section style="margin-top:32px;padding-top:24px;border-top:1px solid #232B3E"><h2 style="font-size:20px;font-weight:700;color:#F3F4F6;margin-bottom:16px">Related Articles</h2>'
+                for r in related:
+                    r_link = f"/{r.get('category_slug','crypto')}/{r['slug']}"
+                    body += f'<div style="margin-bottom:12px"><a href="{r_link}" style="color:#D4AF37;font-size:15px;font-weight:600">{html_escape(r["title"])}</a>'
+                    if r.get("excerpt"):
+                        body += f'<p style="color:#9CA3AF;font-size:13px;margin-top:4px">{html_escape(r["excerpt"][:120])}</p>'
+                    body += '</div>'
+                body += '</section>'
+
             body += '</article>'
 
             return HTMLResponse(inject_meta(
                 base_html, title=f"{title} | AxiomFinity", description=description[:200],
                 canonical=canonical, og_image=image, og_type="article",
-                json_ld=json_ld, extra_meta=extra, body_content=body,
+                json_ld=article_schema, extra_meta=extra, body_content=body,
             ))
 
     # ─── EDUCATION SUBPAGES ───
