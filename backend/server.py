@@ -180,6 +180,7 @@ class UserCreate(BaseModel):
 class CategoryCreate(BaseModel):
     name: str
     description: Optional[str] = ""
+    display_title: Optional[str] = ""
 
 class TagCreate(BaseModel):
     name: str
@@ -685,7 +686,7 @@ async def admin_create_category(data: CategoryCreate, user: dict = Depends(get_c
     existing = await db.categories.find_one({"slug": slug})
     if existing:
         raise HTTPException(status_code=400, detail="Category already exists")
-    doc = {"name": data.name, "slug": slug, "description": data.description, "created_at": datetime.now(timezone.utc).isoformat()}
+    doc = {"name": data.name, "slug": slug, "description": data.description, "display_title": data.display_title or "", "created_at": datetime.now(timezone.utc).isoformat()}
     result = await db.categories.insert_one(doc)
     doc["id"] = str(result.inserted_id)
     doc.pop("_id", None)
@@ -694,7 +695,7 @@ async def admin_create_category(data: CategoryCreate, user: dict = Depends(get_c
 @api_router.put("/admin/categories/{cat_id}")
 async def admin_update_category(cat_id: str, data: CategoryCreate, user: dict = Depends(get_current_user)):
     slug = slugify(data.name)
-    await db.categories.update_one({"_id": ObjectId(cat_id)}, {"$set": {"name": data.name, "slug": slug, "description": data.description}})
+    await db.categories.update_one({"_id": ObjectId(cat_id)}, {"$set": {"name": data.name, "slug": slug, "description": data.description, "display_title": data.display_title or ""}})
     # Update category name/slug in all articles
     await db.articles.update_many({"category_id": cat_id}, {"$set": {"category_name": data.name, "category_slug": slug}})
     updated = await db.categories.find_one({"_id": ObjectId(cat_id)})
@@ -2007,11 +2008,12 @@ async def ssr_page(path: str = "/"):
             ))
 
     # ─── CATEGORY PAGES (single segment like /crypto, /markets, /defi, /analysis) ───
-    categories_cache = await db.categories.find({}, {"_id": 0, "slug": 1, "name": 1, "description": 1}).to_list(50)
+    categories_cache = await db.categories.find({}, {"_id": 0, "slug": 1, "name": 1, "description": 1, "display_title": 1}).to_list(50)
     cat_map = {c["slug"]: c for c in categories_cache}
     if path in cat_map:
         cat = cat_map[path]
         cat_name = cat['name']
+        cat_display = cat.get("display_title") or f"{cat_name} News & Analysis"
         cat_desc = cat.get("description", f"Latest {cat_name.lower()} news, analysis, and insights from AxiomFinity.")
 
         # Fetch recent articles for SSR content
@@ -2022,7 +2024,7 @@ async def ssr_page(path: str = "/"):
 
         # Build body content
         body = f'<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
-        body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(cat_name)} News &amp; Analysis</h1>'
+        body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:12px">{html_escape(cat_display)}</h1>'
         body += f'<div style="font-size:15px;color:#9CA3AF;margin-bottom:24px;max-width:768px;line-height:1.7">{cat_desc}</div>'
         if cat_articles:
             body += '<ul style="list-style:none;padding:0">'
@@ -2043,8 +2045,8 @@ async def ssr_page(path: str = "/"):
         collection_schema = _json.dumps({
             "@context": "https://schema.org",
             "@type": "CollectionPage",
-            "name": f"{cat_name} News & Analysis",
-            "description": cat_desc,
+            "name": cat_display,
+            "description": re.sub(r'<[^>]+>', '', cat_desc)[:200] if cat_desc else "",
             "url": f"{base_url}/{path}",
             "publisher": {"@type": "Organization", "name": "AxiomFinity"},
         }, ensure_ascii=False)

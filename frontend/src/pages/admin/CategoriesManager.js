@@ -11,7 +11,7 @@ export default function CategoriesManager() {
   const [tags, setTags] = useState([]);
   const [showCatForm, setShowCatForm] = useState(false);
   const [editingCat, setEditingCat] = useState(null);
-  const [catForm, setCatForm] = useState({ name: '', description: '' });
+  const [catForm, setCatForm] = useState({ name: '', description: '', display_title: '' });
   const [tagInput, setTagInput] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -40,7 +40,7 @@ export default function CategoriesManager() {
       }
       setShowCatForm(false);
       setEditingCat(null);
-      setCatForm({ name: '', description: '' });
+      setCatForm({ name: '', description: '', display_title: '' });
       fetchData();
     } catch {} finally { setSaving(false); }
   };
@@ -71,7 +71,7 @@ export default function CategoriesManager() {
 
   const startEdit = (cat) => {
     setEditingCat(cat);
-    setCatForm({ name: cat.name, description: cat.description || '' });
+    setCatForm({ name: cat.name, description: cat.description || '', display_title: cat.display_title || '' });
     setShowCatForm(true);
   };
 
@@ -101,11 +101,19 @@ export default function CategoriesManager() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <label className="block text-xs text-[#6B7280] mb-1">Category Name (short — badges, nav, filters)</label>
             <input
               type="text" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
               className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
-              placeholder="Category name"
+              placeholder="e.g. Crypto"
               data-testid="category-name-input"
+            />
+            <label className="block text-xs text-[#6B7280] mb-1">Page Title / H1 (keyword-rich heading for category page)</label>
+            <input
+              type="text" value={catForm.display_title} onChange={e => setCatForm({ ...catForm, display_title: e.target.value })}
+              className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
+              placeholder="e.g. Crypto News Today — Bitcoin, Altcoins & Market Analysis"
+              data-testid="category-display-title-input"
             />
             <label className="block text-xs text-[#6B7280] mb-1">Description (supports paragraphs and links)</label>
             <TipTapEditor

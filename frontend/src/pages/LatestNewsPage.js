@@ -61,7 +61,7 @@ export default function LatestNewsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="latest-news-page">
       <h1 className="text-3xl sm:text-4xl font-bold text-[#F3F4F6] mb-2" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
-        {activeCat?.name || 'Latest News'}
+        {activeCat?.display_title || activeCat?.name || 'Latest News'}
       </h1>
       {activeCat?.description ? (
         <div className="text-[#9CA3AF] mb-8 max-w-3xl text-sm leading-relaxed article-content"
