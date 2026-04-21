@@ -106,10 +106,11 @@ export default function CategoriesManager() {
               placeholder="Category name"
               data-testid="category-name-input"
             />
-            <input
-              type="text" value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })}
-              className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
-              placeholder="Description (optional)"
+            <textarea
+              value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })}
+              className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none"
+              placeholder="SEO description (200-300 words recommended for category page intro)"
+              rows={4}
               data-testid="category-description-input"
             />
             <button type="submit" disabled={saving} className="px-4 py-2 bg-[#D4AF37] text-black text-sm font-medium rounded-lg hover:bg-[#C39F2F] disabled:opacity-50" data-testid="category-save-btn">

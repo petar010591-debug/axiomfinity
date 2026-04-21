@@ -148,6 +148,7 @@ class ArticleCreate(BaseModel):
     excerpt: Optional[str] = ""
     content: str = ""
     featured_image: Optional[str] = ""
+    featured_image_alt: Optional[str] = ""
     category_id: Optional[str] = ""
     secondary_categories: List[str] = []
     tags: List[str] = []
@@ -391,6 +392,17 @@ async def get_tags():
     tags = await db.tags.find({}, {"_id": 1, "name": 1, "slug": 1}).to_list(200)
     return serialize_list(tags)
 
+@api_router.get("/tags/{slug}/articles")
+async def get_tag_articles(slug: str, page: int = 1, limit: int = 20):
+    tag = await db.tags.find_one({"slug": slug})
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    query = {**build_public_query(), "tags": {"$in": [tag["name"], slug]}}
+    total = await db.articles.count_documents(query)
+    skip = (page - 1) * limit
+    articles = await db.articles.find(query, {"_id": 1, "title": 1, "slug": 1, "excerpt": 1, "featured_image": 1, "category_slug": 1, "categories": 1, "author_name": 1, "published_at": 1}).sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
+    return {"articles": serialize_list(articles), "total": total, "page": page, "pages": (total + limit - 1) // limit, "tag_name": tag["name"]}
+
 # ─── PUBLIC PAGES ───
 @api_router.get("/pages")
 async def get_pages(page_type: Optional[str] = None):
@@ -563,6 +575,7 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
         "excerpt": data.excerpt,
         "content": data.content,
         "featured_image": data.featured_image,
+        "featured_image_alt": data.featured_image_alt or "",
         "category_id": data.category_id,
         "category_name": cat_name,
         "category_slug": cat_slug,
@@ -614,6 +627,7 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         "excerpt": data.excerpt,
         "content": data.content,
         "featured_image": data.featured_image,
+        "featured_image_alt": data.featured_image_alt or "",
         "category_id": data.category_id,
         "category_name": cat_name,
         "category_slug": cat_slug,
@@ -734,6 +748,21 @@ async def admin_update_page(page_id: str, data: PageCreate, user: dict = Depends
 async def admin_delete_page(page_id: str, user: dict = Depends(get_current_user)):
     await db.pages.delete_one({"_id": ObjectId(page_id)})
     return {"message": "Page deleted"}
+
+# ─── SIDEBAR TRENDING CONFIG ───
+@api_router.get("/sidebar-config")
+async def get_sidebar_config():
+    config = await db.sidebar_config.find_one({"_id": "trending"}, {"_id": 0})
+    if not config:
+        return {"articles": []}
+    return config
+
+@api_router.put("/admin/sidebar-config")
+async def update_sidebar_config(data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    await db.sidebar_config.update_one({"_id": "trending"}, {"$set": {"articles": data.get("articles", []), "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    return {"message": "Sidebar config updated"}
 
 # ─── ADMIN HOMEPAGE CURATION ───
 
@@ -1181,6 +1210,11 @@ async def sitemap():
     authors = await db.users.find({"slug": {"$exists": True, "$ne": ""}}, {"slug": 1, "name": 1}).to_list(100)
     for author in authors:
         urls.append(f'  <url><loc>{base_url}/author/{author["slug"]}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>')
+
+    # Tag pages
+    all_tags = await db.tags.find({}, {"slug": 1}).to_list(500)
+    for tag in all_tags:
+        urls.append(f'  <url><loc>{base_url}/tag/{tag["slug"]}</loc><changefreq>daily</changefreq><priority>0.5</priority></url>')
 
     xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -1903,6 +1937,41 @@ async def ssr_page(path: str = "/"):
             description="The latest breaking news and analysis on cryptocurrency, Bitcoin, altcoins, DeFi, and financial markets from AxiomFinity.",
             canonical=f"{base_url}/latest",
         ))
+
+    # ─── TAG PAGES ───
+    if path.startswith("tag/"):
+        tag_slug = path.split("/", 1)[1]
+        tag = await db.tags.find_one({"slug": tag_slug}, {"_id": 0, "name": 1})
+        if tag:
+            tag_name = tag["name"]
+            tag_articles = await db.articles.find(
+                {**build_public_query(), "tags": {"$in": [tag_name, tag_slug]}},
+                {"_id": 0, "title": 1, "slug": 1, "category_slug": 1, "excerpt": 1}
+            ).sort("published_at", -1).limit(20).to_list(20)
+
+            body = f'<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
+            body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">{html_escape(tag_name)}</h1>'
+            if tag_articles:
+                body += '<ul style="list-style:none;padding:0">'
+                for ta in tag_articles:
+                    ta_link = f"/{ta.get('category_slug','crypto')}/{ta['slug']}"
+                    body += f'<li style="margin-bottom:12px"><a href="{ta_link}" style="color:#D4AF37;font-size:16px;font-weight:600">{html_escape(ta["title"])}</a></li>'
+                body += '</ul>'
+            body += '</main>'
+
+            breadcrumb_ld = build_breadcrumb_jsonld([
+                ("Home", base_url),
+                (tag_name, f"{base_url}/tag/{tag_slug}"),
+            ])
+
+            return HTMLResponse(inject_meta(
+                base_html,
+                title=f"{tag_name} News & Articles | AxiomFinity",
+                description=f"All articles tagged with {tag_name} on AxiomFinity. Latest crypto news, analysis, and insights.",
+                canonical=f"{base_url}/tag/{tag_slug}",
+                json_ld=breadcrumb_ld,
+                body_content=body,
+            ))
 
     # ─── LEGAL PAGES ───
     legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer"}

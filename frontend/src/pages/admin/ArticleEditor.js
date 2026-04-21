@@ -14,7 +14,7 @@ export default function ArticleEditor() {
   const isEditing = !!id;
 
   const [form, setForm] = useState({
-    title: '', excerpt: '', content: '', featured_image: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: '', faqs: [], custom_slug: '', internal_links: null
+    title: '', excerpt: '', content: '', featured_image: '', featured_image_alt: '', category_id: '', secondary_categories: [], tags: [], status: 'draft', is_sponsored: false, meta_title: '', meta_description: '', scheduled_at: '', og_image: '', faqs: [], custom_slug: '', internal_links: null
   });
   const [categories, setCategories] = useState([]);
   const [allTags, setAllTags] = useState([]);
@@ -42,6 +42,7 @@ export default function ArticleEditor() {
             excerpt: data.excerpt || '',
             content: data.content || '',
             featured_image: data.featured_image || '',
+            featured_image_alt: data.featured_image_alt || '',
             category_id: data.category_id || '',
             secondary_categories: data.categories?.filter(c => c !== data.category_slug) || [],
             tags: data.tags || [],
@@ -185,6 +186,12 @@ export default function ArticleEditor() {
             <div className="mt-2 rounded-lg overflow-hidden border border-[#232B3E] max-w-xs">
               <img src={form.featured_image} alt="Preview" className="w-full h-32 object-cover" />
             </div>
+          )}
+          {form.featured_image && (
+            <input type="text" value={form.featured_image_alt} onChange={e => updateField('featured_image_alt', e.target.value)}
+              placeholder="Image alt text (describe the image for SEO)"
+              className="mt-2 w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]"
+              data-testid="featured-image-alt-input" />
           )}
         </div>
 

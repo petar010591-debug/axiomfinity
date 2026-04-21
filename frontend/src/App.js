@@ -10,6 +10,7 @@ import ArticlePage from "./pages/ArticlePage";
 import LatestNewsPage from "./pages/LatestNewsPage";
 import EducationPage from "./pages/EducationPage";
 import EducationArticle from "./pages/EducationArticle";
+import TagPage from "./pages/TagPage";
 import AboutPage, { ContactPage } from "./pages/AboutPage";
 import SearchPage from "./pages/SearchPage";
 import LegalPage from "./pages/LegalPage";
@@ -24,6 +25,7 @@ import UsersManager from "./pages/admin/UsersManager";
 import AdminProfile from "./pages/admin/AdminProfile";
 import PagesManager from "./pages/admin/PagesManager";
 import EducationHubManager from "./pages/admin/EducationHubManager";
+import SidebarManager from "./pages/admin/SidebarManager";
 import TeamManager from "./pages/admin/TeamManager";
 import SeoSettings from "./pages/admin/SeoSettings";
 import HomepageOrder from "./pages/admin/HomepageOrder";
@@ -61,6 +63,7 @@ function App() {
               <Route path="/category/:slug" element={<LatestNewsPage />} />
               <Route path="/education" element={<EducationPage />} />
               <Route path="/education/:slug" element={<EducationArticle />} />
+              <Route path="/tag/:slug" element={<TagPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/search" element={<SearchPage />} />
@@ -77,6 +80,7 @@ function App() {
                 <Route path="categories" element={<CategoriesManager />} />
                 <Route path="pages" element={<PagesManager />} />
                 <Route path="education" element={<EducationHubManager />} />
+                <Route path="trending" element={<SidebarManager />} />
                 <Route path="homepage" element={<HomepageCuration />} />
                 <Route path="homepage/order" element={<HomepageOrder />} />
                 <Route path="team" element={<TeamManager />} />

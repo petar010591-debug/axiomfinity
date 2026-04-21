@@ -15,6 +15,7 @@ const SIDEBAR_ITEMS = [
   { label: 'Categories', href: '/admin/categories', icon: FolderOpen },
   { label: 'Pages', href: '/admin/pages', icon: FileEdit },
   { label: 'Education Hub', href: '/admin/education', icon: BookOpen },
+  { label: 'Trending', href: '/admin/trending', icon: ArrowUpDown },
   { label: 'Homepage', href: '/admin/homepage', icon: Home },
   { label: 'Team Members', href: '/admin/team', icon: UsersRound },
   { label: 'Users & Roles', href: '/admin/users', icon: Users },

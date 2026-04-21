@@ -13,11 +13,24 @@ export default function Sidebar() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [articlesRes, catsRes] = await Promise.all([
+        const [sidebarRes, defaultRes, catsRes] = await Promise.all([
+          axios.get(`${API}/sidebar-config`).catch(() => ({ data: { articles: [] } })),
           axios.get(`${API}/articles?limit=5`),
           axios.get(`${API}/categories`)
         ]);
-        setTrending(articlesRes.data.articles || []);
+        // Use curated trending if configured, otherwise fall back to latest
+        const curated = sidebarRes.data?.articles || [];
+        if (curated.length > 0) {
+          // Fetch actual article data for the curated slugs
+          const articlePromises = curated.slice(0, 5).map(item =>
+            axios.get(`${API}/articles/by-slug/${item.slug}`).catch(() => null)
+          );
+          const results = await Promise.all(articlePromises);
+          const curatedArticles = results.filter(r => r?.data).map(r => r.data);
+          setTrending(curatedArticles.length > 0 ? curatedArticles : (defaultRes.data.articles || []));
+        } else {
+          setTrending(defaultRes.data.articles || []);
+        }
         setCategories(catsRes.data || []);
       } catch {} finally { setLoading(false); }
     };
@@ -51,7 +64,7 @@ export default function Sidebar() {
         </div>
         <div className="space-y-1">
           {categories.map(cat => (
-            <a key={cat.id} href={`/category/${cat.slug}`} className="flex items-center justify-between px-3 py-2 text-sm text-[#9CA3AF] hover:text-[#D4AF37] hover:bg-[#1C2230] rounded transition-colors" data-testid={`sidebar-cat-${cat.slug}`}>
+            <a key={cat.id} href={`/${cat.slug}`} className="flex items-center justify-between px-3 py-2 text-sm text-[#9CA3AF] hover:text-[#D4AF37] hover:bg-[#1C2230] rounded transition-colors" data-testid={`sidebar-cat-${cat.slug}`}>
               <span>{cat.name}</span>
             </a>
           ))}
@@ -68,19 +81,11 @@ export default function Sidebar() {
           New to crypto? Start with our beginner-friendly guides.
         </p>
         <div className="space-y-2 mb-3">
-          <a href="/education/how-to-buy-bitcoin" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors" data-testid="sidebar-edu-link-1">
-            How to Buy Bitcoin
-          </a>
-          <a href="/education/what-is-cryptocurrency" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors" data-testid="sidebar-edu-link-2">
-            What Is Cryptocurrency?
-          </a>
-          <a href="/education/understanding-crypto-wallets" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors" data-testid="sidebar-edu-link-3">
-            Understanding Crypto Wallets
-          </a>
+          <a href="/education/how-to-buy-bitcoin" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors">How to Buy Bitcoin</a>
+          <a href="/education/what-is-cryptocurrency" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors">What Is Cryptocurrency?</a>
+          <a href="/education/understanding-crypto-wallets" className="block text-sm text-[#F3F4F6] hover:text-[#D4AF37] transition-colors">Understanding Crypto Wallets</a>
         </div>
-        <a href="/education" className="inline-block text-xs font-semibold text-[#D4AF37] hover:underline">
-          View all guides &rarr;
-        </a>
+        <a href="/education" className="inline-block text-xs font-semibold text-[#D4AF37] hover:underline">View all guides &rarr;</a>
       </div>
 
       {/* Editor's Pick */}

@@ -65,7 +65,14 @@ export default function HomePage() {
     <div data-testid="homepage">
       {/* Hero Section - Latest News Bento Grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4">
-        <SectionHeader title="Latest News" href="/latest" testId="view-all-latest-btn" />
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-[#F3F4F6]" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
+            Crypto News Today
+          </h1>
+          <Link to="/latest" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#232B3E] text-[#9CA3AF] rounded-lg hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors" data-testid="view-all-latest-btn">
+            View All <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
             <ArticleCardHero article={heroArticle} />
