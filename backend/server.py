@@ -864,15 +864,37 @@ async def migrate_cloudinary_to_r2(user: dict = Depends(get_current_user)):
     failed = 0
     url_map = {}  # old_url -> new_url
 
-    # Find all media items with Cloudinary URLs
-    cloudinary_media = await db.media.find({"url": {"$regex": "res.cloudinary.com"}}).to_list(5000)
-    logger.info(f"Found {len(cloudinary_media)} Cloudinary images to migrate")
+    # Collect ALL unique Cloudinary URLs from articles, users, team, and media
+    cloudinary_urls = set()
 
-    for item in cloudinary_media:
-        old_url = item["url"]
+    all_articles = await db.articles.find({}).to_list(10000)
+    for a in all_articles:
+        for field in ["featured_image", "og_image"]:
+            val = a.get(field, "")
+            if val and "res.cloudinary.com" in val:
+                cloudinary_urls.add(val)
+        # Find Cloudinary URLs in HTML content
+        import re as _re
+        content = a.get("content", "")
+        for match in _re.findall(r'https?://res\.cloudinary\.com/[^\s\'"<>]+', content):
+            cloudinary_urls.add(match)
+
+    all_users = await db.users.find({}).to_list(500)
+    for u in all_users:
+        if u.get("avatar_url", "") and "res.cloudinary.com" in u.get("avatar_url", ""):
+            cloudinary_urls.add(u["avatar_url"])
+
+    all_team = await db.team_members.find({}).to_list(500)
+    for t in all_team:
+        if t.get("avatar_url", "") and "res.cloudinary.com" in t.get("avatar_url", ""):
+            cloudinary_urls.add(t["avatar_url"])
+
+    logger.info(f"Found {len(cloudinary_urls)} unique Cloudinary URLs to migrate")
+
+    # Download and re-upload each URL
+    for old_url in cloudinary_urls:
         try:
-            # Download from Cloudinary
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
                 resp = await client.get(old_url)
                 if resp.status_code != 200:
                     logger.warning(f"Failed to download {old_url}: HTTP {resp.status_code}")
@@ -881,7 +903,6 @@ async def migrate_cloudinary_to_r2(user: dict = Depends(get_current_user)):
                 data = resp.content
                 content_type = resp.headers.get("content-type", "image/jpeg")
 
-            # Determine filename
             ext = "jpg"
             if "png" in content_type:
                 ext = "png"
@@ -891,23 +912,18 @@ async def migrate_cloudinary_to_r2(user: dict = Depends(get_current_user)):
                 ext = "gif"
             filename = f"{uuid.uuid4().hex}.{ext}"
 
-            # Upload to R2
             new_url = upload_to_r2(data, filename, content_type)
             url_map[old_url] = new_url
-
-            # Update media library record
-            await db.media.update_one({"_id": item["_id"]}, {"$set": {"url": new_url, "r2_migrated": True, "old_cloudinary_url": old_url}})
             migrated += 1
-            logger.info(f"Migrated: {old_url} -> {new_url}")
+            logger.info(f"Migrated ({migrated}): {old_url[:60]}... -> {new_url}")
 
         except Exception as e:
             logger.error(f"Migration failed for {old_url}: {e}")
             failed += 1
 
-    # Update all article references
+    # Update all references
     articles_updated = 0
     if url_map:
-        all_articles = await db.articles.find({}).to_list(10000)
         for article in all_articles:
             updates = {}
             for field in ["featured_image", "og_image"]:
@@ -915,7 +931,6 @@ async def migrate_cloudinary_to_r2(user: dict = Depends(get_current_user)):
                 if val in url_map:
                     updates[field] = url_map[val]
 
-            # Replace URLs inside HTML content
             content = article.get("content", "")
             new_content = content
             for old_u, new_u in url_map.items():
@@ -927,17 +942,17 @@ async def migrate_cloudinary_to_r2(user: dict = Depends(get_current_user)):
                 await db.articles.update_one({"_id": article["_id"]}, {"$set": updates})
                 articles_updated += 1
 
-        # Update user avatars
-        all_users = await db.users.find({}).to_list(500)
         for u in all_users:
             if u.get("avatar_url", "") in url_map:
                 await db.users.update_one({"_id": u["_id"]}, {"$set": {"avatar_url": url_map[u["avatar_url"]]}})
 
-        # Update team member avatars
-        all_team = await db.team_members.find({}).to_list(500)
         for t in all_team:
             if t.get("avatar_url", "") in url_map:
                 await db.team_members.update_one({"_id": t["_id"]}, {"$set": {"avatar_url": url_map[t["avatar_url"]]}})
+
+        # Update media library records too
+        for old_u, new_u in url_map.items():
+            await db.media.update_many({"url": old_u}, {"$set": {"url": new_u, "r2_migrated": True, "old_cloudinary_url": old_u}})
 
     return {
         "migrated": migrated,
