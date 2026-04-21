@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { ArticleCardSecondary } from '../components/ArticleCard';
 import { motion } from 'framer-motion';
@@ -9,6 +9,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function LatestNewsPage() {
   const [searchParams] = useSearchParams();
   const { slug: categoryFromUrl } = useParams();
+  const navigate = useNavigate();
   const categorySlug = categoryFromUrl || searchParams.get('category');
   const [articles, setArticles] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -45,21 +46,35 @@ export default function LatestNewsPage() {
     fetchArticles();
   }, [page, activeCategory]);
 
+  const switchCategory = (slug) => {
+    setActiveCategory(slug);
+    setPage(1);
+    if (slug) {
+      navigate(`/${slug}`);
+    } else {
+      navigate('/latest');
+    }
+  };
+
+  const activeCat = categories.find(c => c.slug === activeCategory);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="latest-news-page">
       <h1 className="text-3xl sm:text-4xl font-bold text-[#F3F4F6] mb-2" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
-        {activeCategory ? categories.find(c => c.slug === activeCategory)?.name || 'Latest News' : 'Latest News'}
+        {activeCat?.name || 'Latest News'}
       </h1>
-      <p className="text-[#9CA3AF] mb-8">
-        {activeCategory
-          ? (categories.find(c => c.slug === activeCategory)?.description || 'Stay updated with the latest in financial news and crypto markets.')
-          : 'Stay updated with the latest in financial news and crypto markets.'}
-      </p>
+      {activeCat?.description ? (
+        <div className="text-[#9CA3AF] mb-8 max-w-3xl text-sm leading-relaxed article-content"
+          dangerouslySetInnerHTML={{ __html: activeCat.description }}
+        />
+      ) : (
+        <p className="text-[#9CA3AF] mb-8">Stay updated with the latest in financial news and crypto markets.</p>
+      )}
 
       {/* Category Filter */}
       <div className="flex items-center gap-2 flex-wrap mb-8" data-testid="category-filter">
         <button
-          onClick={() => { setActiveCategory(''); setPage(1); }}
+          onClick={() => switchCategory('')}
           className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${
             !activeCategory ? 'bg-[#D4AF37] text-black' : 'bg-[#121620] text-[#9CA3AF] border border-[#232B3E] hover:border-[#D4AF37] hover:text-[#D4AF37]'
           }`}
@@ -70,7 +85,7 @@ export default function LatestNewsPage() {
         {categories.map(cat => (
           <button
             key={cat.id}
-            onClick={() => { setActiveCategory(cat.slug); setPage(1); }}
+            onClick={() => switchCategory(cat.slug)}
             className={`px-4 py-2 text-sm rounded-lg font-medium transition-colors ${
               activeCategory === cat.slug ? 'bg-[#D4AF37] text-black' : 'bg-[#121620] text-[#9CA3AF] border border-[#232B3E] hover:border-[#D4AF37] hover:text-[#D4AF37]'
             }`}

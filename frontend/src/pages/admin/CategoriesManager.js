@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
 import { Plus, Trash2, PenLine, X } from 'lucide-react';
+import TipTapEditor from '../../components/TipTapEditor';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -106,12 +107,10 @@ export default function CategoriesManager() {
               placeholder="Category name"
               data-testid="category-name-input"
             />
-            <textarea
-              value={catForm.description} onChange={e => setCatForm({ ...catForm, description: e.target.value })}
-              className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded-lg text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none"
-              placeholder="SEO description (200-300 words recommended for category page intro)"
-              rows={4}
-              data-testid="category-description-input"
+            <label className="block text-xs text-[#6B7280] mb-1">Description (supports paragraphs and links)</label>
+            <TipTapEditor
+              content={catForm.description || ''}
+              onChange={(html) => setCatForm(prev => ({ ...prev, description: html }))}
             />
             <button type="submit" disabled={saving} className="px-4 py-2 bg-[#D4AF37] text-black text-sm font-medium rounded-lg hover:bg-[#C39F2F] disabled:opacity-50" data-testid="category-save-btn">
               {saving ? 'Saving...' : (editingCat ? 'Update' : 'Create')}
