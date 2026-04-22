@@ -11,7 +11,7 @@ export default function CategoriesManager() {
   const [tags, setTags] = useState([]);
   const [showCatForm, setShowCatForm] = useState(false);
   const [editingCat, setEditingCat] = useState(null);
-  const [catForm, setCatForm] = useState({ name: '', description: '', display_title: '' });
+  const [catForm, setCatForm] = useState({ name: '', description: '', display_title: '', faqs: [] });
   const [tagInput, setTagInput] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -40,7 +40,7 @@ export default function CategoriesManager() {
       }
       setShowCatForm(false);
       setEditingCat(null);
-      setCatForm({ name: '', description: '', display_title: '' });
+      setCatForm({ name: '', description: '', display_title: '', faqs: [] });
       fetchData();
     } catch {} finally { setSaving(false); }
   };
@@ -71,7 +71,7 @@ export default function CategoriesManager() {
 
   const startEdit = (cat) => {
     setEditingCat(cat);
-    setCatForm({ name: cat.name, description: cat.description || '', display_title: cat.display_title || '' });
+    setCatForm({ name: cat.name, description: cat.description || '', display_title: cat.display_title || '', faqs: cat.faqs || [] });
     setShowCatForm(true);
   };
 
@@ -120,6 +120,26 @@ export default function CategoriesManager() {
               content={catForm.description || ''}
               onChange={(html) => setCatForm(prev => ({ ...prev, description: html }))}
             />
+            {/* FAQs */}
+            <div className="border border-[#232B3E] rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-[#9CA3AF]">FAQs ({catForm.faqs.length})</span>
+                <button type="button" onClick={() => setCatForm({ ...catForm, faqs: [...catForm.faqs, { question: '', answer: '' }] })}
+                  className="px-2 py-1 text-xs bg-[#D4AF37]/10 text-[#D4AF37] rounded hover:bg-[#D4AF37]/20">+ Add FAQ</button>
+              </div>
+              {catForm.faqs.map((faq, i) => (
+                <div key={i} className="bg-[#0A0D14] border border-[#1A202E] rounded p-2 mb-2">
+                  <div className="flex gap-2 mb-1">
+                    <input value={faq.question} onChange={e => { const f = [...catForm.faqs]; f[i] = { ...f[i], question: e.target.value }; setCatForm({ ...catForm, faqs: f }); }}
+                      placeholder="Question" className="flex-1 px-2 py-1.5 bg-[#121620] border border-[#232B3E] rounded text-xs text-[#F3F4F6] focus:outline-none focus:border-[#D4AF37]" />
+                    <button type="button" onClick={() => setCatForm({ ...catForm, faqs: catForm.faqs.filter((_, j) => j !== i) })}
+                      className="px-2 text-[#6B7280] hover:text-[#EF4444]"><X className="w-3 h-3" /></button>
+                  </div>
+                  <textarea value={faq.answer} onChange={e => { const f = [...catForm.faqs]; f[i] = { ...f[i], answer: e.target.value }; setCatForm({ ...catForm, faqs: f }); }}
+                    placeholder="Answer" rows={2} className="w-full px-2 py-1.5 bg-[#121620] border border-[#232B3E] rounded text-xs text-[#F3F4F6] focus:outline-none focus:border-[#D4AF37] resize-none" />
+                </div>
+              ))}
+            </div>
             <button type="submit" disabled={saving} className="px-4 py-2 bg-[#D4AF37] text-black text-sm font-medium rounded-lg hover:bg-[#C39F2F] disabled:opacity-50" data-testid="category-save-btn">
               {saving ? 'Saving...' : (editingCat ? 'Update' : 'Create')}
             </button>

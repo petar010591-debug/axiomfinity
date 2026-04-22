@@ -181,6 +181,7 @@ class CategoryCreate(BaseModel):
     name: str
     description: Optional[str] = ""
     display_title: Optional[str] = ""
+    faqs: List[dict] = []
 
 class TagCreate(BaseModel):
     name: str
@@ -385,7 +386,7 @@ async def search_articles(q: str = Query("", min_length=1), page: int = 1, limit
 # ─── PUBLIC CATEGORY / TAG ROUTES ───
 @api_router.get("/categories")
 async def get_categories():
-    cats = await db.categories.find({}, {"_id": 1, "name": 1, "slug": 1, "description": 1, "display_title": 1}).to_list(100)
+    cats = await db.categories.find({}, {"_id": 1, "name": 1, "slug": 1, "description": 1, "display_title": 1, "faqs": 1}).to_list(100)
     return serialize_list(cats)
 
 @api_router.get("/tags")
@@ -686,7 +687,7 @@ async def admin_create_category(data: CategoryCreate, user: dict = Depends(get_c
     existing = await db.categories.find_one({"slug": slug})
     if existing:
         raise HTTPException(status_code=400, detail="Category already exists")
-    doc = {"name": data.name, "slug": slug, "description": data.description, "display_title": data.display_title or "", "created_at": datetime.now(timezone.utc).isoformat()}
+    doc = {"name": data.name, "slug": slug, "description": data.description, "display_title": data.display_title or "", "faqs": data.faqs, "created_at": datetime.now(timezone.utc).isoformat()}
     result = await db.categories.insert_one(doc)
     doc["id"] = str(result.inserted_id)
     doc.pop("_id", None)
@@ -695,7 +696,7 @@ async def admin_create_category(data: CategoryCreate, user: dict = Depends(get_c
 @api_router.put("/admin/categories/{cat_id}")
 async def admin_update_category(cat_id: str, data: CategoryCreate, user: dict = Depends(get_current_user)):
     slug = slugify(data.name)
-    await db.categories.update_one({"_id": ObjectId(cat_id)}, {"$set": {"name": data.name, "slug": slug, "description": data.description, "display_title": data.display_title or ""}})
+    await db.categories.update_one({"_id": ObjectId(cat_id)}, {"$set": {"name": data.name, "slug": slug, "description": data.description, "display_title": data.display_title or "", "faqs": data.faqs}})
     # Update category name/slug in all articles
     await db.articles.update_many({"category_id": cat_id}, {"$set": {"category_name": data.name, "category_slug": slug}})
     updated = await db.categories.find_one({"_id": ObjectId(cat_id)})
@@ -751,6 +752,23 @@ async def admin_delete_page(page_id: str, user: dict = Depends(get_current_user)
     return {"message": "Page deleted"}
 
 # ─── SIDEBAR TRENDING CONFIG ───
+@api_router.get("/latest-page-config")
+async def get_latest_page_config():
+    config = await db.latest_page_config.find_one({"_id": "config"}, {"_id": 0})
+    if not config:
+        return {"display_title": "Latest News", "description": "", "faqs": []}
+    return config
+
+@api_router.put("/admin/latest-page-config")
+async def update_latest_page_config(data: dict = Body(...), user: dict = Depends(get_current_user)):
+    if user["role"] not in ["super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    allowed = {"display_title", "description", "faqs"}
+    update = {k: v for k, v in data.items() if k in allowed}
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.latest_page_config.update_one({"_id": "config"}, {"$set": update}, upsert=True)
+    return {"message": "Latest page config updated"}
+
 @api_router.get("/sidebar-config")
 async def get_sidebar_config():
     config = await db.sidebar_config.find_one({"_id": "trending"}, {"_id": 0})
@@ -2008,7 +2026,7 @@ async def ssr_page(path: str = "/"):
             ))
 
     # ─── CATEGORY PAGES (single segment like /crypto, /markets, /defi, /analysis) ───
-    categories_cache = await db.categories.find({}, {"_id": 0, "slug": 1, "name": 1, "description": 1, "display_title": 1}).to_list(50)
+    categories_cache = await db.categories.find({}, {"_id": 0, "slug": 1, "name": 1, "description": 1, "display_title": 1, "faqs": 1}).to_list(50)
     cat_map = {c["slug"]: c for c in categories_cache}
     if path in cat_map:
         cat = cat_map[path]
@@ -2038,9 +2056,12 @@ async def ssr_page(path: str = "/"):
                     body += f'<p style="color:#9CA3AF;font-size:14px;margin-top:4px">{ca_excerpt}</p>'
                 body += '</li>'
             body += '</ul>'
+        # Category FAQs
+        cat_faqs = cat.get("faqs", [])
+        body += build_faq_html(cat_faqs)
         body += '</main>'
 
-        # CollectionPage + BreadcrumbList schema
+        # CollectionPage + BreadcrumbList + FAQ schema
         import json as _json
         collection_schema = _json.dumps({
             "@context": "https://schema.org",
@@ -2055,11 +2076,15 @@ async def ssr_page(path: str = "/"):
             (cat_name, f"{base_url}/{path}"),
         ])
         combined_ld = collection_schema + '\n</script>\n<script type="application/ld+json">' + breadcrumb_ld
+        cat_faq_ld = build_faq_jsonld(cat_faqs)
+        if cat_faq_ld:
+            combined_ld += '\n</script>\n<script type="application/ld+json">' + cat_faq_ld
 
+        cat_desc_plain = re.sub(r'<[^>]+>', '', cat_desc)[:200] if cat_desc else f"Latest {cat_name.lower()} news and analysis."
         return HTMLResponse(inject_meta(
             base_html,
-            title=f"{cat_name} News & Analysis | AxiomFinity",
-            description=cat_desc[:200],
+            title=f"{cat_display} | AxiomFinity",
+            description=cat_desc_plain,
             canonical=f"{base_url}/{path}",
             json_ld=combined_ld,
             body_content=body,

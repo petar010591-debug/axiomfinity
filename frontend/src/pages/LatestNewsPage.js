@@ -3,6 +3,7 @@ import { useSearchParams, useParams, useNavigate, Link } from 'react-router-dom'
 import axios from 'axios';
 import { ArticleCardSecondary } from '../components/ArticleCard';
 import { motion } from 'framer-motion';
+import FaqAccordion from '../components/FaqAccordion';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -10,23 +11,40 @@ export default function LatestNewsPage() {
   const [searchParams] = useSearchParams();
   const { slug: categoryFromUrl } = useParams();
   const navigate = useNavigate();
-  const categorySlug = categoryFromUrl || searchParams.get('category');
+  const location = window.location.pathname;
+
+  // Determine active category from URL: /category/:slug, /:slug, or query param
+  const getCategoryFromPath = () => {
+    if (categoryFromUrl) return categoryFromUrl;
+    const param = searchParams.get('category');
+    if (param) return param;
+    // Check if path is a single-segment category slug like /crypto, /markets
+    const pathSlug = location.replace(/^\//, '').split('/')[0];
+    if (pathSlug && pathSlug !== 'latest') return pathSlug;
+    return '';
+  };
+
   const [articles, setArticles] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [activeCategory, setActiveCategory] = useState(categorySlug || '');
+  const [latestConfig, setLatestConfig] = useState(null);
+  const [activeCategory, setActiveCategory] = useState(getCategoryFromPath());
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (categorySlug) setActiveCategory(categorySlug);
-  }, [categorySlug]);
+    setActiveCategory(getCategoryFromPath());
+  }, [categoryFromUrl, location]); // eslint-disable-line
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const { data } = await axios.get(`${API}/categories`);
-        setCategories(data || []);
+        const [catsRes, latestRes] = await Promise.all([
+          axios.get(`${API}/categories`),
+          axios.get(`${API}/latest-page-config`).catch(() => ({ data: null })),
+        ]);
+        setCategories(catsRes.data || []);
+        setLatestConfig(latestRes.data);
       } catch {}
     };
     fetchCategories();
@@ -61,11 +79,17 @@ export default function LatestNewsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" data-testid="latest-news-page">
       <h1 className="text-3xl sm:text-4xl font-bold text-[#F3F4F6] mb-2" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
-        {activeCat?.display_title || activeCat?.name || 'Latest News'}
+        {activeCategory
+          ? (activeCat?.display_title || activeCat?.name || 'Latest News')
+          : (latestConfig?.display_title || 'Latest News')}
       </h1>
-      {activeCat?.description ? (
+      {activeCategory && activeCat?.description ? (
         <div className="text-[#9CA3AF] mb-8 max-w-3xl text-sm leading-relaxed article-content"
           dangerouslySetInnerHTML={{ __html: activeCat.description }}
+        />
+      ) : !activeCategory && latestConfig?.description ? (
+        <div className="text-[#9CA3AF] mb-8 max-w-3xl text-sm leading-relaxed article-content"
+          dangerouslySetInnerHTML={{ __html: latestConfig.description }}
         />
       ) : (
         <p className="text-[#9CA3AF] mb-8">Stay updated with the latest in financial news and crypto markets.</p>
@@ -137,6 +161,18 @@ export default function LatestNewsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* FAQs */}
+      {activeCategory && activeCat?.faqs?.length > 0 && (
+        <div className="max-w-3xl mt-12">
+          <FaqAccordion faqs={activeCat.faqs} />
+        </div>
+      )}
+      {!activeCategory && latestConfig?.faqs?.length > 0 && (
+        <div className="max-w-3xl mt-12">
+          <FaqAccordion faqs={latestConfig.faqs} />
+        </div>
       )}
     </div>
   );
