@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import FaqAccordion from '../components/FaqAccordion';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -59,6 +60,12 @@ export default function LegalPage() {
         </h1>
 
         <div className="article-content" dangerouslySetInnerHTML={{ __html: page.content }} />
+
+        {page.faqs?.length > 0 && (
+          <div className="mt-12">
+            <FaqAccordion faqs={page.faqs} />
+          </div>
+        )}
       </motion.div>
     </div>
   );
