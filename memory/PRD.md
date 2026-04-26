@@ -50,11 +50,14 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - [Apr 2026] Education Hub sidebar block with internal links on homepage/category pages
 - [Apr 2026] Major SEO overhaul: fixed sitemap URLs, BreadcrumbList schema, category SSR content, Organization schema, Related Articles in SSR, footer SSR
 - [Apr 2026] SEO round 2: keyword H1, editable category descriptions, tag pages, editable trending sidebar, alt text for images
+- [Apr 2026] Google Publisher Center prep: Editorial Standards page (CMS-managed), Person + ProfilePage + BreadcrumbList JSON-LD on author pages, enriched Organization schema with `publishingPrinciples` + `sameAs`, NewsArticle author entity now includes Person URL/jobTitle/sameAs/image, admin profile fields extended (job_title, expertise, rich-text bio_html)
 
 ## Upcoming Tasks (P2)
-- Category page FAQs — Add FAQ sections to category pages for long-tail SEO
+- Submit publication to Google Publisher Center (publishercenter.google.com) — site is ready
 - Topic authority pages — SEO landing pages for specific assets (e.g., "XRP News Today")
-- Backend refactoring — Split server.py monolith (~1500+ lines) into routes/ directory
+- Backend refactoring — Split server.py monolith (~2700+ lines) into routes/ directory
+- IndexNow ping on article publish/update for instant Bing indexation
+- Category page FAQs — Add FAQ sections to category pages for long-tail SEO
 
 ## Future/Backlog (P3)
 - Custom CTA button blocks in TipTap editor
@@ -63,10 +66,10 @@ Build a full-stack financial news site (AxiomFinity). Features include real mark
 - Newsletter integration
 
 ## Key DB Schema
-- `articles`: {title, slug, excerpt, content, cover_image, author_id, categories, status, published_at, updated_at, scheduled_at, faqs}
-- `pages`: {slug, title, content, page_type, updated_at}
-- `users`: {email, password_hash, name, role, bio, avatar_url, social_*}
-- `categories`: {name, slug, description}
+- `articles`: {title, slug, excerpt, content, cover_image, author_id, author_slug, categories, status, published_at, updated_at, scheduled_at, faqs}
+- `pages`: {slug, title, content, page_type, faqs, updated_at}
+- `users`: {email, password_hash, name, slug, role, bio, bio_html, job_title, expertise, avatar_url, social_twitter, social_linkedin, website}
+- `categories`: {name, slug, description, display_title, faqs}
 - `tags`: {name, slug}
 - `contact_messages`: {name, email, message, created_at} (legacy, form removed)
 

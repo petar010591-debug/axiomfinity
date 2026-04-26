@@ -46,6 +46,7 @@ export default function Footer() {
           <div>
             <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-[#9CA3AF] mb-4" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>Legal</h4>
             <div className="space-y-2">
+              <Link to="/page/editorial-standards" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors" data-testid="footer-editorial-standards-link">Editorial Standards</Link>
               <Link to="/page/privacy-policy" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Privacy Policy</Link>
               <Link to="/page/terms-and-conditions" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Terms & Conditions</Link>
               <Link to="/page/financial-disclaimer" className="block text-sm text-[#6B7280] hover:text-[#D4AF37] transition-colors">Financial Disclaimer</Link>

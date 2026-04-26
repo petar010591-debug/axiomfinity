@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -8,7 +8,10 @@ import FaqAccordion from '../components/FaqAccordion';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function LegalPage() {
-  const { slug } = useParams();
+  const params = useParams();
+  const location = useLocation();
+  // Support both `/page/:slug` and bare paths like `/privacy-policy` or `/editorial-standards`
+  const slug = params.slug || location.pathname.replace(/^\/+/, '').split('/')[0];
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
 

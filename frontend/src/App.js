@@ -76,6 +76,10 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/page/:slug" element={<LegalPage />} />
+              <Route path="/editorial-standards" element={<LegalPage />} />
+              <Route path="/privacy-policy" element={<LegalPage />} />
+              <Route path="/terms-and-conditions" element={<LegalPage />} />
+              <Route path="/financial-disclaimer" element={<LegalPage />} />
               <Route path="/author/:authorSlug" element={<AuthorProfile />} />
               <Route path="/:category/:slug" element={<ArticlePage />} />
 

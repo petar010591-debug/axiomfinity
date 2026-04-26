@@ -165,10 +165,13 @@ class ArticleCreate(BaseModel):
 class UserProfileUpdate(BaseModel):
     name: Optional[str] = None
     bio: Optional[str] = ""
+    bio_html: Optional[str] = ""
     avatar_url: Optional[str] = ""
     social_twitter: Optional[str] = ""
     social_linkedin: Optional[str] = ""
     website: Optional[str] = ""
+    job_title: Optional[str] = ""
+    expertise: Optional[str] = ""
 
 class UserCreate(BaseModel):
     email: str
@@ -176,6 +179,9 @@ class UserCreate(BaseModel):
     name: str
     role: str = "author"
     bio: Optional[str] = ""
+    bio_html: Optional[str] = ""
+    job_title: Optional[str] = ""
+    expertise: Optional[str] = ""
 
 class CategoryCreate(BaseModel):
     name: str
@@ -1060,6 +1066,8 @@ async def update_profile(data: UserProfileUpdate, user: dict = Depends(get_curre
         update["name"] = data.name
     if data.bio is not None:
         update["bio"] = data.bio
+    if data.bio_html is not None:
+        update["bio_html"] = data.bio_html
     if data.avatar_url is not None:
         update["avatar_url"] = data.avatar_url
     if data.social_twitter is not None:
@@ -1068,6 +1076,10 @@ async def update_profile(data: UserProfileUpdate, user: dict = Depends(get_curre
         update["social_linkedin"] = data.social_linkedin
     if data.website is not None:
         update["website"] = data.website
+    if data.job_title is not None:
+        update["job_title"] = data.job_title
+    if data.expertise is not None:
+        update["expertise"] = data.expertise
     if update:
         if "name" in update:
             update["slug"] = await ensure_unique_user_slug(update["name"], ObjectId(user["id"]))
@@ -1103,6 +1115,9 @@ async def admin_create_user(data: UserCreate, user: dict = Depends(get_current_u
         "slug": user_slug,
         "role": data.role,
         "bio": data.bio or "",
+        "bio_html": data.bio_html or "",
+        "job_title": data.job_title or "",
+        "expertise": data.expertise or "",
         "avatar_url": "",
         "social_twitter": "",
         "social_linkedin": "",
@@ -1222,7 +1237,7 @@ async def sitemap():
             urls.append(f'  <url><loc>{base_url}/education/{pg_slug}</loc>{mod_tag}<changefreq>monthly</changefreq><priority>0.7</priority></url>')
         elif pg_slug in ("about", "contact"):
             pass  # Already added above
-        elif pg_slug in ("privacy-policy", "terms-and-conditions", "financial-disclaimer"):
+        elif pg_slug in ("privacy-policy", "terms-and-conditions", "financial-disclaimer", "editorial-standards"):
             urls.append(f'  <url><loc>{base_url}/{pg_slug}</loc>{mod_tag}<changefreq>monthly</changefreq><priority>0.3</priority></url>')
 
     # Author pages
@@ -1800,6 +1815,20 @@ async def ssr_page(path: str = "/"):
     # ─── HOMEPAGE ───
     if path == "" or path == "index.html":
         import json as _json
+
+        # Pull primary publisher (super_admin) for Organization sameAs
+        primary_admin = await db.users.find_one(
+            {"role": {"$in": ["super_admin", "admin"]}},
+            {"_id": 0, "social_twitter": 1, "social_linkedin": 1, "website": 1, "name": 1}
+        )
+        org_same_as = []
+        if primary_admin:
+            if primary_admin.get("social_twitter"):
+                h = primary_admin["social_twitter"].strip().lstrip("@")
+                org_same_as.append(h if h.startswith("http") else f"https://twitter.com/{h}")
+            if primary_admin.get("social_linkedin"):
+                org_same_as.append(primary_admin["social_linkedin"])
+
         website_schema = _json.dumps({
             "@context": "https://schema.org",
             "@type": "WebSite",
@@ -1817,16 +1846,23 @@ async def ssr_page(path: str = "/"):
             "@context": "https://schema.org",
             "@type": "Organization",
             "name": "AxiomFinity",
+            "alternateName": "AxiomFinity News",
             "url": base_url,
-            "logo": f"{base_url}/logo192.png",
+            "logo": {
+                "@type": "ImageObject",
+                "url": f"{base_url}/logo192.png",
+                "width": 192,
+                "height": 192,
+            },
             "description": "AxiomFinity is a digital finance news platform covering cryptocurrency, Bitcoin, altcoins, blockchain, DeFi, and traditional financial markets.",
             "foundingDate": "2026",
-            "sameAs": [],
+            "sameAs": org_same_as,
             "contactPoint": {
                 "@type": "ContactPoint",
                 "email": "petar@axiomfinity.com",
                 "contactType": "editorial"
-            }
+            },
+            "publishingPrinciples": f"{base_url}/editorial-standards",
         }, ensure_ascii=False)
         combined = website_schema + '\n</script>\n<script type="application/ld+json">' + org_schema
 
@@ -2046,7 +2082,7 @@ async def ssr_page(path: str = "/"):
             ))
 
     # ─── LEGAL PAGES ───
-    legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer"}
+    legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer", "editorial-standards": "Editorial Standards"}
     if path in legal_slugs:
         page = await db.pages.find_one({"slug": path}, {"_id": 0, "title": 1, "content": 1, "faqs": 1})
         title = page.get("title", legal_slugs[path]) if page else legal_slugs[path]
@@ -2068,17 +2104,48 @@ async def ssr_page(path: str = "/"):
     # ─── AUTHOR PAGES ───
     if path.startswith("author/"):
         author_slug = path.split("/", 1)[1]
-        user = await db.users.find_one({"slug": author_slug}, {"_id": 0, "name": 1, "bio": 1, "avatar_url": 1, "slug": 1})
-        if user:
+        user_doc = await db.users.find_one(
+            {"slug": author_slug},
+            {"name": 1, "bio": 1, "bio_html": 1, "avatar_url": 1, "slug": 1,
+             "job_title": 1, "expertise": 1, "social_twitter": 1, "social_linkedin": 1, "website": 1}
+        )
+        if user_doc:
+            user_id_str = str(user_doc.pop("_id"))
+            user = user_doc
             name = user.get("name", "Author")
-            bio = user.get("bio", f"Articles and analysis by {name} on AxiomFinity.")
+            bio = user.get("bio") or f"Articles and analysis by {name} on AxiomFinity."
+            bio_html = user.get("bio_html") or ""
+            job_title = user.get("job_title") or ""
+            expertise = user.get("expertise") or ""
+            avatar_url = user.get("avatar_url") or ""
+
+            # Build sameAs URLs from social profiles
+            same_as = []
+            if user.get("social_twitter"):
+                handle = user["social_twitter"].strip().lstrip("@")
+                if handle.startswith("http"):
+                    same_as.append(handle)
+                else:
+                    same_as.append(f"https://twitter.com/{handle}")
+            if user.get("social_linkedin"):
+                same_as.append(user["social_linkedin"])
+            if user.get("website"):
+                same_as.append(user["website"])
+
             author_articles = await db.articles.find(
-                {**build_public_query()},
+                {"author_id": user_id_str, **build_public_query()},
                 {"_id": 0, "title": 1, "slug": 1, "category_slug": 1}
             ).sort("published_at", -1).limit(20).to_list(20)
+
             body = f'<main style="max-width:768px;margin:0 auto;padding:32px 16px"><h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(name)}</h1>'
-            if bio:
-                body += f'<p style="color:#9CA3AF;margin-bottom:24px">{html_escape(bio[:300])}</p>'
+            if job_title:
+                body += f'<p style="color:#D4AF37;font-size:14px;font-weight:600;margin-bottom:8px">{html_escape(job_title)}</p>'
+            if expertise:
+                body += f'<p style="color:#9CA3AF;font-size:13px;margin-bottom:12px"><strong style="color:#F3F4F6">Areas of expertise:</strong> {html_escape(expertise)}</p>'
+            if bio_html:
+                body += f'<div style="color:#9CA3AF;line-height:1.7;margin-bottom:24px">{bio_html}</div>'
+            elif bio:
+                body += f'<p style="color:#9CA3AF;margin-bottom:24px;line-height:1.7">{html_escape(bio)}</p>'
             if author_articles:
                 body += '<h2 style="font-size:20px;font-weight:700;color:#F3F4F6;margin-bottom:12px">Articles</h2><ul style="list-style:none;padding:0">'
                 for a in author_articles:
@@ -2086,13 +2153,51 @@ async def ssr_page(path: str = "/"):
                     body += f'<li style="margin-bottom:10px"><a href="{a_link}" style="color:#D4AF37;font-size:15px">{html_escape(a["title"])}</a></li>'
                 body += '</ul>'
             body += '</main>'
+
+            # JSON-LD: ProfilePage + Person + BreadcrumbList
+            import json as _json
+            person_obj = {
+                "@type": "Person",
+                "name": name,
+                "url": f"{base_url}/author/{author_slug}",
+                "description": bio[:500] if bio else f"Author at AxiomFinity",
+            }
+            if avatar_url:
+                person_obj["image"] = avatar_url
+            if job_title:
+                person_obj["jobTitle"] = job_title
+            if expertise:
+                person_obj["knowsAbout"] = [e.strip() for e in expertise.split(",") if e.strip()]
+            if same_as:
+                person_obj["sameAs"] = same_as
+            person_obj["worksFor"] = {
+                "@type": "Organization",
+                "name": "AxiomFinity",
+                "url": base_url,
+            }
+
+            profile_schema = _json.dumps({
+                "@context": "https://schema.org",
+                "@type": "ProfilePage",
+                "url": f"{base_url}/author/{author_slug}",
+                "name": f"{name} – AxiomFinity",
+                "mainEntity": person_obj,
+            }, ensure_ascii=False)
+            breadcrumb_ld = build_breadcrumb_jsonld([
+                ("Home", base_url),
+                ("Authors", base_url),
+                (name, f"{base_url}/author/{author_slug}"),
+            ])
+            combined_ld = profile_schema + '\n</script>\n<script type="application/ld+json">' + breadcrumb_ld
+
             return HTMLResponse(inject_meta(
                 base_html,
                 title=f"{name} | AxiomFinity Author",
-                description=bio[:160],
+                description=(bio[:160] if bio else f"Articles by {name} on AxiomFinity."),
                 canonical=f"{base_url}/author/{author_slug}",
-                og_image=user.get("avatar_url", ""),
+                og_image=avatar_url,
                 og_type="profile",
+                json_ld=combined_ld,
                 body_content=body,
             ))
 
@@ -2169,6 +2274,7 @@ async def ssr_page(path: str = "/"):
             {"slug": article_slug, **build_public_query()},
             {"_id": 0, "title": 1, "excerpt": 1, "content": 1, "featured_image": 1, "og_image": 1,
              "meta_title": 1, "meta_description": 1, "category_slug": 1, "category_name": 1, "author_name": 1,
+             "author_slug": 1, "author_id": 1,
              "published_at": 1, "updated_at": 1, "faqs": 1, "internal_links": 1}
         )
         if article:
@@ -2180,10 +2286,42 @@ async def ssr_page(path: str = "/"):
             cat_name = article.get('category_name', cat_slug.title())
             canonical = f"{base_url}/{cat_slug}/{article_slug}"
             author = article.get("author_name", "AxiomFinity")
+            author_slug_doc = article.get("author_slug", "")
             published_at = article.get("published_at", "")
             modified_at = article.get("updated_at", published_at)
 
             extra = f'<meta property="article:author" content="{html_escape(author)}"/>\n<meta property="article:published_time" content="{published_at}"/>\n<meta property="article:modified_time" content="{modified_at}"/>'
+
+            # Build rich Person entity for the author
+            author_person = {"@type": "Person", "name": author}
+            author_doc = None
+            if author_slug_doc:
+                author_doc = await db.users.find_one(
+                    {"slug": author_slug_doc},
+                    {"_id": 0, "avatar_url": 1, "bio": 1, "job_title": 1,
+                     "social_twitter": 1, "social_linkedin": 1, "website": 1}
+                )
+            if author_doc:
+                author_person["url"] = f"{base_url}/author/{author_slug_doc}"
+                if author_doc.get("avatar_url"):
+                    author_person["image"] = author_doc["avatar_url"]
+                if author_doc.get("job_title"):
+                    author_person["jobTitle"] = author_doc["job_title"]
+                if author_doc.get("bio"):
+                    author_person["description"] = author_doc["bio"][:300]
+                a_same_as = []
+                if author_doc.get("social_twitter"):
+                    h = author_doc["social_twitter"].strip().lstrip("@")
+                    a_same_as.append(h if h.startswith("http") else f"https://twitter.com/{h}")
+                if author_doc.get("social_linkedin"):
+                    a_same_as.append(author_doc["social_linkedin"])
+                if author_doc.get("website"):
+                    a_same_as.append(author_doc["website"])
+                if a_same_as:
+                    author_person["sameAs"] = a_same_as
+            elif author_slug_doc:
+                # Fallback: include URL even if no rich data
+                author_person["url"] = f"{base_url}/author/{author_slug_doc}"
 
             # NewsArticle JSON-LD
             article_schema = _json.dumps({
@@ -2194,8 +2332,13 @@ async def ssr_page(path: str = "/"):
                 "image": [image] if image else [],
                 "datePublished": str(published_at),
                 "dateModified": str(modified_at),
-                "author": {"@type": "Person", "name": author},
-                "publisher": {"@type": "Organization", "name": "AxiomFinity", "logo": {"@type": "ImageObject", "url": f"{base_url}/logo192.png"}},
+                "author": author_person,
+                "publisher": {
+                    "@type": "Organization",
+                    "name": "AxiomFinity",
+                    "logo": {"@type": "ImageObject", "url": f"{base_url}/logo192.png"},
+                    "publishingPrinciples": f"{base_url}/editorial-standards",
+                },
                 "mainEntityOfPage": {"@type": "WebPage", "@id": canonical}
             }, ensure_ascii=False)
 
@@ -2554,6 +2697,94 @@ async def seed_data():
                 "updated_at": now,
             })
             logger.info("Contact page seeded")
+
+    # Ensure Editorial Standards page exists (idempotent)
+    if not await db.pages.find_one({"slug": "editorial-standards"}):
+        now = datetime.now(timezone.utc).isoformat()
+        editorial_content = (
+            "<p><em>Last updated: April 2026</em></p>"
+            "<h2>Our Mission</h2>"
+            "<p>AxiomFinity exists to deliver clear, accurate, and timely reporting on cryptocurrency, blockchain technology, "
+            "decentralized finance, traditional financial markets, and precious metals. We believe readers deserve "
+            "context, not noise — and that high‑quality financial journalism is essential in an era of rapid market change.</p>"
+            "<h2>Editorial Independence</h2>"
+            "<p>Our editorial decisions are made independently of advertisers, sponsors, and any commercial relationships. "
+            "Sponsored content is always clearly labelled as <strong>Sponsored</strong> or <strong>Press Release</strong> "
+            "and is segregated from our editorial coverage. No advertiser, partner, or external party reviews "
+            "or approves our editorial content prior to publication.</p>"
+            "<h2>Sourcing &amp; Verification</h2>"
+            "<p>We hold ourselves to the following sourcing standards:</p>"
+            "<ul>"
+            "<li><strong>Primary sources first.</strong> Whenever possible, we link directly to official statements, "
+            "regulatory filings, on‑chain data, peer‑reviewed research, and named individuals.</li>"
+            "<li><strong>Multiple sources for material claims.</strong> Significant claims — particularly those about "
+            "price movement, partnerships, regulatory action, or security incidents — are corroborated against at "
+            "least two independent sources before publication.</li>"
+            "<li><strong>Clearly labelled analysis.</strong> Articles that include opinion, market analysis, "
+            "or speculative scenarios are clearly distinguished from straight reporting.</li>"
+            "<li><strong>On‑chain transparency.</strong> Where applicable, we cite block explorers, contract addresses, "
+            "and verifiable on‑chain evidence rather than unsourced rumours.</li>"
+            "</ul>"
+            "<h2>Fact‑Checking Process</h2>"
+            "<p>Every article passes through a multi‑step review prior to publication:</p>"
+            "<ol>"
+            "<li>The author drafts the article and verifies all factual claims against primary or recognized secondary sources.</li>"
+            "<li>An editor reviews the draft for accuracy, clarity, sourcing, and compliance with these standards.</li>"
+            "<li>Numbers, prices, dates, names, and quotations are checked against original references prior to publishing.</li>"
+            "<li>Time‑sensitive market data is timestamped at the time of writing and may not reflect live conditions at the time of reading.</li>"
+            "</ol>"
+            "<h2>Corrections Policy</h2>"
+            "<p>If we publish information that turns out to be inaccurate, we are committed to correcting it transparently:</p>"
+            "<ul>"
+            "<li><strong>Material corrections</strong> — those that change the meaning of an article — are noted at the bottom of the article with the date and a brief description of what was changed.</li>"
+            "<li><strong>Minor corrections</strong> — typos, formatting, broken links — are made silently.</li>"
+            "<li><strong>Significant retractions</strong> are accompanied by an editor’s note explaining the issue and the steps taken to address it.</li>"
+            "</ul>"
+            "<p>If you believe we have published something inaccurate, please contact us at "
+            "<a href=\"mailto:petar@axiomfinity.com\">petar@axiomfinity.com</a> with the URL of the article, "
+            "the specific claim in question, and any supporting evidence. We commit to reviewing reasonable correction "
+            "requests within 48 hours.</p>"
+            "<h2>Disclosures</h2>"
+            "<p><strong>Author holdings.</strong> Our writers may personally hold positions in cryptocurrencies, equities, "
+            "or other assets covered on this site. Where a position is materially relevant to the topic of an article, "
+            "the author will disclose it within the article itself.</p>"
+            "<p><strong>Sponsored content.</strong> Sponsored articles, press releases, and partnership content are "
+            "clearly labelled at the top of the page and excluded from our editorial categories. Sponsors do not "
+            "influence the content or framing of our independent reporting on their projects.</p>"
+            "<p><strong>Affiliate links.</strong> Some links on this site may be affiliate links. The use of an affiliate "
+            "relationship does not influence whether or how we cover a product, exchange, or service.</p>"
+            "<h2>AI Disclosure</h2>"
+            "<p>AxiomFinity articles are written and edited by humans. We may use AI tools to assist with research, "
+            "transcription, summarisation, and grammar review, but every published article is reviewed, edited, and "
+            "approved by a human editor who is accountable for its accuracy.</p>"
+            "<h2>Not Financial Advice</h2>"
+            "<p>The information published on AxiomFinity is for educational and informational purposes only and does "
+            "<strong>not</strong> constitute personalised financial, investment, legal, or tax advice. Cryptocurrency "
+            "and digital‑asset investments are highly volatile and carry substantial risk of loss. Always conduct "
+            "your own research and consult with a qualified financial advisor before making any investment decisions. "
+            "Past performance does not guarantee future results.</p>"
+            "<h2>Reader Privacy</h2>"
+            "<p>We respect reader privacy and do not sell personal information to third parties. Please refer to our "
+            "<a href=\"/page/privacy-policy\">Privacy Policy</a> for full details.</p>"
+            "<h2>Contact the Editorial Team</h2>"
+            "<p>Story tips, corrections, and editorial feedback can be sent to "
+            "<a href=\"mailto:petar@axiomfinity.com\">petar@axiomfinity.com</a> or via the "
+            "<a href=\"/contact\">contact page</a>. We read every message and respond to substantive enquiries "
+            "within 1–2 business days.</p>"
+        )
+        await db.pages.insert_one({
+            "title": "Editorial Standards",
+            "slug": "editorial-standards",
+            "page_type": "legal",
+            "content": editorial_content,
+            "meta_title": "Editorial Standards & Corrections Policy | AxiomFinity",
+            "meta_description": "Read AxiomFinity's editorial standards, sourcing rules, fact-checking process, corrections policy, AI disclosure, and conflict-of-interest disclosures.",
+            "faqs": [],
+            "featured_image": "",
+            "created_at": now,
+            "updated_at": now,
+        })
+        logger.info("Editorial Standards page seeded")
 
     # Seed education hub content
     from education_seed import EDUCATION_HUB_CONFIG, EDUCATION_ARTICLES

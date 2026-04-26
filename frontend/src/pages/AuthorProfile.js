@@ -63,11 +63,28 @@ export default function AuthorProfile() {
             <h1 className="text-2xl sm:text-3xl font-bold text-[#F3F4F6] mb-1" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
               {author.name}
             </h1>
-            <p className="text-sm text-[#D4AF37] capitalize mb-3">{author.role?.replace('_', ' ')}</p>
-            {author.bio && <p className="text-sm text-[#9CA3AF] leading-relaxed max-w-2xl">{author.bio}</p>}
+            {author.job_title ? (
+              <p className="text-sm text-[#D4AF37] font-semibold mb-1" data-testid="author-job-title">{author.job_title}</p>
+            ) : (
+              <p className="text-sm text-[#D4AF37] capitalize mb-1">{author.role?.replace('_', ' ')}</p>
+            )}
+            {author.expertise && (
+              <p className="text-xs text-[#9CA3AF] mb-3" data-testid="author-expertise">
+                <span className="text-[#F3F4F6] font-medium">Areas of expertise:</span> {author.expertise}
+              </p>
+            )}
+            {author.bio_html ? (
+              <div
+                className="text-sm text-[#9CA3AF] leading-relaxed max-w-2xl article-content"
+                data-testid="author-bio-html"
+                dangerouslySetInnerHTML={{ __html: author.bio_html }}
+              />
+            ) : (
+              author.bio && <p className="text-sm text-[#9CA3AF] leading-relaxed max-w-2xl">{author.bio}</p>
+            )}
             <div className="flex items-center gap-3 mt-3">
               {author.social_twitter && (
-                <a href={`https://twitter.com/${author.social_twitter.replace('@','')}`} target="_blank" rel="noopener noreferrer" className="text-[#6B7280] hover:text-[#D4AF37] transition-colors" data-testid="author-twitter">
+                <a href={author.social_twitter.startsWith('http') ? author.social_twitter : `https://twitter.com/${author.social_twitter.replace('@','')}`} target="_blank" rel="noopener noreferrer" className="text-[#6B7280] hover:text-[#D4AF37] transition-colors" data-testid="author-twitter">
                   <Twitter className="w-4 h-4" />
                 </a>
               )}
