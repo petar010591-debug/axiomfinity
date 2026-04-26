@@ -1829,12 +1829,36 @@ async def ssr_page(path: str = "/"):
             }
         }, ensure_ascii=False)
         combined = website_schema + '\n</script>\n<script type="application/ld+json">' + org_schema
+
+        # Build homepage body content with latest articles
+        home_articles = await db.articles.find(
+            build_public_query(),
+            {"_id": 0, "title": 1, "slug": 1, "excerpt": 1, "category_slug": 1, "category_name": 1, "author_name": 1, "published_at": 1}
+        ).sort("published_at", -1).limit(20).to_list(20)
+
+        body = '<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
+        body += '<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:8px">Crypto News Today</h1>'
+        body += '<p style="color:#9CA3AF;margin-bottom:24px">Breaking crypto news, Bitcoin &amp; altcoin analysis, stock market insights, and precious metals coverage from AxiomFinity.</p>'
+        body += '<nav style="margin-bottom:24px;font-size:14px"><a href="/crypto" style="color:#D4AF37;margin-right:16px">Crypto</a><a href="/markets" style="color:#D4AF37;margin-right:16px">Markets</a><a href="/analysis" style="color:#D4AF37;margin-right:16px">Analysis</a><a href="/defi" style="color:#D4AF37;margin-right:16px">DeFi</a><a href="/education" style="color:#D4AF37;margin-right:16px">Education</a></nav>'
+        if home_articles:
+            body += '<section><h2 style="font-size:24px;font-weight:700;color:#F3F4F6;margin-bottom:16px">Latest Articles</h2><ul style="list-style:none;padding:0">'
+            for a in home_articles:
+                a_link = f"/{a.get('category_slug','crypto')}/{a['slug']}"
+                body += f'<li style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #232B3E">'
+                body += f'<a href="{a_link}" style="color:#D4AF37;font-size:17px;font-weight:600">{html_escape(a.get("title",""))}</a>'
+                if a.get("excerpt"):
+                    body += f'<p style="color:#9CA3AF;font-size:14px;margin-top:4px">{html_escape(a["excerpt"][:150])}</p>'
+                body += '</li>'
+            body += '</ul></section>'
+        body += '</main>'
+
         return HTMLResponse(inject_meta(
             base_html,
             title="Crypto News Today, Bitcoin, Altcoins, Stocks & Metals Analysis | AxiomFinity",
             description="Breaking crypto news, Bitcoin & altcoin analysis, stock market insights, and precious metals coverage. Stay ahead with AxiomFinity.",
             canonical=base_url,
             json_ld=combined,
+            body_content=body,
         ))
 
     # ─── ABOUT ───
@@ -1842,30 +1866,37 @@ async def ssr_page(path: str = "/"):
         page = await db.pages.find_one({"slug": "about"}, {"_id": 0, "title": 1, "content": 1, "faqs": 1})
         title = page.get("title", "About Us") if page else "About Us"
         faqs = page.get("faqs", []) if page else []
-        faq_ld = ""
-        if faqs:
-            faq_ld = build_faq_jsonld(faqs)
+        faq_ld = build_faq_jsonld(faqs) if faqs else ""
+        body = f'<main style="max-width:768px;margin:0 auto;padding:32px 16px"><h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">{html_escape(title)}</h1>'
+        if page and page.get("content"):
+            body += f'<div>{page["content"]}</div>'
+        body += build_faq_html(faqs) + '</main>'
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{title} | AxiomFinity",
             description="Learn about AxiomFinity, our mission, editorial values, and the team behind the most trusted source for crypto and financial news.",
             canonical=f"{base_url}/about",
             json_ld=faq_ld,
+            body_content=body,
         ))
 
     # ─── CONTACT ───
     if path == "contact":
-        page = await db.pages.find_one({"slug": "contact"}, {"_id": 0, "faqs": 1})
+        page = await db.pages.find_one({"slug": "contact"}, {"_id": 0, "title": 1, "content": 1, "faqs": 1})
         faqs = page.get("faqs", []) if page else []
-        faq_ld = ""
-        if faqs:
-            faq_ld = build_faq_jsonld(faqs)
+        faq_ld = build_faq_jsonld(faqs) if faqs else ""
+        body = '<main style="max-width:768px;margin:0 auto;padding:32px 16px"><h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">Contact Us</h1>'
+        if page and page.get("content"):
+            body += f'<div>{page["content"]}</div>'
+        body += '<p style="margin-top:16px"><a href="mailto:petar@axiomfinity.com" style="color:#D4AF37;font-size:18px">petar@axiomfinity.com</a></p>'
+        body += build_faq_html(faqs) + '</main>'
         return HTMLResponse(inject_meta(
             base_html,
             title="Contact Us | AxiomFinity",
             description="Get in touch with the AxiomFinity team. Reach out for questions, feedback, business inquiries, or partnership opportunities.",
             canonical=f"{base_url}/contact",
             json_ld=faq_ld,
+            body_content=body,
         ))
 
     # ─── EDUCATION HUB ───
@@ -1950,11 +1981,33 @@ async def ssr_page(path: str = "/"):
 
     # ─── LATEST ───
     if path == "latest":
+        latest_config = await db.latest_page_config.find_one({"_id": "config"}, {"_id": 0})
+        latest_articles = await db.articles.find(
+            build_public_query(),
+            {"_id": 0, "title": 1, "slug": 1, "excerpt": 1, "category_slug": 1}
+        ).sort("published_at", -1).limit(20).to_list(20)
+        body = '<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
+        lt = latest_config.get("display_title", "Latest News") if latest_config else "Latest News"
+        body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">{html_escape(lt)}</h1>'
+        if latest_config and latest_config.get("description"):
+            body += f'<div style="max-width:768px;margin-bottom:24px;color:#9CA3AF">{latest_config["description"]}</div>'
+        if latest_articles:
+            body += '<ul style="list-style:none;padding:0">'
+            for a in latest_articles:
+                a_link = f"/{a.get('category_slug','crypto')}/{a['slug']}"
+                body += f'<li style="margin-bottom:12px"><a href="{a_link}" style="color:#D4AF37;font-size:16px;font-weight:600">{html_escape(a["title"])}</a></li>'
+            body += '</ul>'
+        latest_faqs = latest_config.get("faqs", []) if latest_config else []
+        body += build_faq_html(latest_faqs)
+        body += '</main>'
+        faq_ld = build_faq_jsonld(latest_faqs) if latest_faqs else ""
         return HTMLResponse(inject_meta(
             base_html,
             title="Latest Crypto & Financial News | AxiomFinity",
             description="The latest breaking news and analysis on cryptocurrency, Bitcoin, altcoins, DeFi, and financial markets from AxiomFinity.",
             canonical=f"{base_url}/latest",
+            json_ld=faq_ld,
+            body_content=body,
         ))
 
     # ─── TAG PAGES ───
@@ -1995,27 +2048,44 @@ async def ssr_page(path: str = "/"):
     # ─── LEGAL PAGES ───
     legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer"}
     if path in legal_slugs:
-        page = await db.pages.find_one({"slug": path}, {"_id": 0, "title": 1, "faqs": 1})
+        page = await db.pages.find_one({"slug": path}, {"_id": 0, "title": 1, "content": 1, "faqs": 1})
         title = page.get("title", legal_slugs[path]) if page else legal_slugs[path]
         faqs = page.get("faqs", []) if page else []
-        faq_ld = ""
-        if faqs:
-            faq_ld = build_faq_jsonld(faqs)
+        faq_ld = build_faq_jsonld(faqs) if faqs else ""
+        body = f'<main style="max-width:768px;margin:0 auto;padding:32px 16px"><h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">{html_escape(title)}</h1>'
+        if page and page.get("content"):
+            body += f'<div>{page["content"]}</div>'
+        body += build_faq_html(faqs) + '</main>'
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{title} | AxiomFinity",
             description=f"Read the AxiomFinity {legal_slugs[path].lower()}.",
             canonical=f"{base_url}/{path}",
             json_ld=faq_ld,
+            body_content=body,
         ))
 
     # ─── AUTHOR PAGES ───
     if path.startswith("author/"):
         author_slug = path.split("/", 1)[1]
-        user = await db.users.find_one({"slug": author_slug}, {"_id": 0, "name": 1, "bio": 1, "avatar_url": 1})
+        user = await db.users.find_one({"slug": author_slug}, {"_id": 0, "name": 1, "bio": 1, "avatar_url": 1, "slug": 1})
         if user:
             name = user.get("name", "Author")
             bio = user.get("bio", f"Articles and analysis by {name} on AxiomFinity.")
+            author_articles = await db.articles.find(
+                {**build_public_query()},
+                {"_id": 0, "title": 1, "slug": 1, "category_slug": 1}
+            ).sort("published_at", -1).limit(20).to_list(20)
+            body = f'<main style="max-width:768px;margin:0 auto;padding:32px 16px"><h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:8px">{html_escape(name)}</h1>'
+            if bio:
+                body += f'<p style="color:#9CA3AF;margin-bottom:24px">{html_escape(bio[:300])}</p>'
+            if author_articles:
+                body += '<h2 style="font-size:20px;font-weight:700;color:#F3F4F6;margin-bottom:12px">Articles</h2><ul style="list-style:none;padding:0">'
+                for a in author_articles:
+                    a_link = f"/{a.get('category_slug','crypto')}/{a['slug']}"
+                    body += f'<li style="margin-bottom:10px"><a href="{a_link}" style="color:#D4AF37;font-size:15px">{html_escape(a["title"])}</a></li>'
+                body += '</ul>'
+            body += '</main>'
             return HTMLResponse(inject_meta(
                 base_html,
                 title=f"{name} | AxiomFinity Author",
@@ -2023,6 +2093,7 @@ async def ssr_page(path: str = "/"):
                 canonical=f"{base_url}/author/{author_slug}",
                 og_image=user.get("avatar_url", ""),
                 og_type="profile",
+                body_content=body,
             ))
 
     # ─── CATEGORY PAGES (single segment like /crypto, /markets, /defi, /analysis) ───
