@@ -356,12 +356,26 @@ export default function ArticleEditor() {
               <p className="text-[10px] text-[#6B7280] mt-1">Leave empty to auto-generate from title. Use lowercase letters, numbers, and hyphens only.</p>
             </div>
             <div>
-              <label className="block text-xs text-[#6B7280] mb-1">Meta Title</label>
-              <input type="text" value={form.meta_title} onChange={e => updateField('meta_title', e.target.value)} className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]" />
+              <label className="block text-xs text-[#6B7280] mb-1">Meta Title <span className="text-[10px] text-[#6B7280]">(used for SEO &amp; browser tab — falls back to article title if empty)</span></label>
+              <input type="text" value={form.meta_title} onChange={e => updateField('meta_title', e.target.value)} maxLength={70} className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37]" data-testid="meta-title-input" />
+              {(() => {
+                const len = (form.meta_title || form.title || '').length + ' | AxiomFinity'.length;
+                const status = len <= 60 ? 'good' : len <= 70 ? 'warn' : 'bad';
+                const color = status === 'good' ? '#10B981' : status === 'warn' ? '#F59E0B' : '#EF4444';
+                const msg = status === 'good' ? 'Optimal length' : status === 'warn' ? 'A bit long — consider shortening' : 'Too long — Bing/Google will truncate';
+                return <p className="text-[10px] mt-1" style={{color}} data-testid="meta-title-counter">{len} chars (with " | AxiomFinity" suffix) — {msg}</p>;
+              })()}
             </div>
             <div>
-              <label className="block text-xs text-[#6B7280] mb-1">Meta Description</label>
-              <textarea rows={2} value={form.meta_description} onChange={e => updateField('meta_description', e.target.value)} className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none" />
+              <label className="block text-xs text-[#6B7280] mb-1">Meta Description <span className="text-[10px] text-[#6B7280]">(falls back to excerpt if empty)</span></label>
+              <textarea rows={2} value={form.meta_description} onChange={e => updateField('meta_description', e.target.value)} maxLength={170} className="w-full px-3 py-2 bg-[#0A0D14] border border-[#232B3E] rounded text-[#F3F4F6] text-sm focus:outline-none focus:border-[#D4AF37] resize-none" data-testid="meta-description-input" />
+              {(() => {
+                const len = (form.meta_description || form.excerpt || '').length;
+                const status = len === 0 ? 'bad' : len < 70 ? 'warn' : len <= 160 ? 'good' : 'bad';
+                const color = status === 'good' ? '#10B981' : status === 'warn' ? '#F59E0B' : '#EF4444';
+                const msg = len === 0 ? 'Missing — fill in or set an excerpt' : len < 70 ? 'A bit short' : len <= 160 ? 'Optimal length' : 'Too long — search engines will truncate';
+                return <p className="text-[10px] mt-1" style={{color}} data-testid="meta-description-counter">{len} chars — {msg}</p>;
+              })()}
             </div>
             <div>
               <label className="block text-xs text-[#6B7280] mb-1">OG Image URL (for social sharing)</label>

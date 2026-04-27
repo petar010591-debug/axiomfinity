@@ -1686,6 +1686,9 @@ def inject_meta(html: str, title: str, description: str, canonical: str, og_imag
     """Replace default meta tags in index.html with route-specific ones. Optionally inject body content for SSR."""
     base_url = os.environ.get("SITE_URL", "https://www.axiomfinity.com")
     og_img = og_image or f"{base_url}/logo512.png"
+    # Cap description at 160 chars (SEO best practice + Bing/Google truncation point)
+    if description and len(description) > 160:
+        description = description[:157].rstrip() + "..."
     t = html_escape(title)
     d = html_escape(description)
 

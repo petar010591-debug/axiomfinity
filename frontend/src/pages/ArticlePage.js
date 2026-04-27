@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import FaqAccordion from '../components/FaqAccordion';
 import DOMPurify from 'dompurify';
-import { Helmet } from 'react-helmet-async';
 import { Clock, User, ArrowLeft, Share2, Tag, RefreshCw } from 'lucide-react';
 import { ArticleCardSecondary } from '../components/ArticleCard';
 import { motion } from 'framer-motion';
@@ -38,6 +37,30 @@ export default function ArticlePage() {
     fetchArticle();
     window.scrollTo(0, 0);
   }, [slug]);
+
+  // Update document.title + meta description on client-side navigation between articles.
+  // SSR populates these on initial load; this keeps tab title/description in sync when
+  // users click between articles without a full page reload. Avoids react-helmet duplicate-tag bug.
+  useEffect(() => {
+    if (!article) return;
+    const titleStr = `${article.meta_title || article.title} | AxiomFinity`;
+    document.title = titleStr;
+    const descContent = (article.meta_description || article.excerpt || '').slice(0, 160);
+    const setMeta = (selector, attr, value) => {
+      const el = document.querySelector(selector);
+      if (el) el.setAttribute(attr, value);
+    };
+    setMeta('meta[name="description"]', 'content', descContent);
+    setMeta('meta[property="og:title"]', 'content', titleStr);
+    setMeta('meta[property="og:description"]', 'content', descContent);
+    setMeta('meta[property="og:image"]', 'content', article.og_image || article.featured_image || '');
+    setMeta('meta[property="og:url"]', 'content', window.location.href);
+    setMeta('meta[name="twitter:title"]', 'content', titleStr);
+    setMeta('meta[name="twitter:description"]', 'content', descContent);
+    setMeta('meta[name="twitter:image"]', 'content', article.og_image || article.featured_image || '');
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (canonical) canonical.setAttribute('href', window.location.href);
+  }, [article]);
 
   // Load Twitter widget for embeds (handles both data-twitter-embed and class="twitter-tweet")
   useEffect(() => {
@@ -107,25 +130,9 @@ export default function ArticlePage() {
   if (!article) return null;
 
   const shareUrl = window.location.href;
-  const ogImage = article.og_image || article.featured_image || '';
-  const ogTitle = article.og_title || article.title || '';
-  const ogDescription = article.og_description || article.excerpt || '';
 
   return (
     <div data-testid="article-page">
-      <Helmet>
-        <title>{`${ogTitle} | AxiomFinity`}</title>
-        <meta name="description" content={ogDescription} />
-        <meta property="og:title" content={ogTitle} />
-        <meta property="og:description" content={ogDescription} />
-        <meta property="og:image" content={ogImage} />
-        <meta property="og:url" content={shareUrl} />
-        <meta property="og:type" content="article" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={ogTitle} />
-        <meta name="twitter:description" content={ogDescription} />
-        <meta name="twitter:image" content={ogImage} />
-      </Helmet>
       <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-[#6B7280] mb-6" data-testid="article-breadcrumb">
@@ -172,7 +179,7 @@ export default function ArticlePage() {
                 <Link to={`/author/${article.author_slug || article.author_id}`} className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors" data-testid="article-author-link">
                   <div className="w-7 h-7 rounded-full bg-[#D4AF37]/20 flex items-center justify-center overflow-hidden">
                     {article.author?.avatar_url ? (
-                      <img src={article.author.avatar_url} alt="" className="w-full h-full object-cover" />
+                      <img src={article.author.avatar_url} alt={article.author_name || 'Author avatar'} className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-3.5 h-3.5 text-[#D4AF37]" />
                     )}
@@ -206,20 +213,6 @@ export default function ArticlePage() {
 
         {/* Content */}
         <div className="article-content max-w-none" data-testid="article-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content, { ADD_TAGS: ['iframe', 'blockquote'], ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'data-twitter-embed', 'target', 'rel', 'href', 'class'] }) }} />
-
-        {/* JSON-LD Structured Data */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "NewsArticle",
-          "headline": article.title,
-          "description": article.excerpt,
-          "image": article.featured_image ? [article.featured_image] : [],
-          "datePublished": article.published_at,
-          "dateModified": article.updated_at || article.published_at,
-          "author": { "@type": "Person", "name": article.author_name || "AxiomFinity" },
-          "publisher": { "@type": "Organization", "name": "AxiomFinity", "logo": { "@type": "ImageObject", "url": "https://www.axiomfinity.com/logo192.png" } },
-          "mainEntityOfPage": { "@type": "WebPage", "@id": `https://www.axiomfinity.com/${article.category_slug}/${article.slug}` }
-        }) }} />
 
         {/* Internal Links Box */}
         {article.internal_links?.title && article.internal_links?.links?.length > 0 && (

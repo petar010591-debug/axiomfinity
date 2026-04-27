@@ -106,7 +106,7 @@ export function ArticleCardCompact({ article }) {
         className="flex gap-3 group cursor-pointer py-3 border-b border-[#1A202E] last:border-0"
       >
         <div className="w-16 h-16 rounded overflow-hidden flex-shrink-0">
-          <img src={article.featured_image} alt="" className="w-full h-full object-cover" />
+          <img src={article.featured_image} alt={article.title || 'Article image'} className="w-full h-full object-cover" />
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-semibold text-[#F3F4F6] line-clamp-2 group-hover:text-[#D4AF37] transition-colors leading-snug" style={{ fontFamily: 'Cabinet Grotesk, sans-serif' }}>
