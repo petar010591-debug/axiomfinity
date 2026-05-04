@@ -1220,6 +1220,10 @@ async def sitemap():
     for cat in categories:
         if cat["slug"] in ("sponsored", "press-releases", "press-release"):
             continue
+        # Skip empty categories — they trigger soft 404 in GSC
+        article_count = await db.articles.count_documents({"category_slug": cat["slug"], **build_public_query()})
+        if article_count == 0:
+            continue
         urls.append(f'  <url><loc>{base_url}/{cat["slug"]}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>')
 
     for article in articles:
@@ -1245,9 +1249,15 @@ async def sitemap():
     for author in authors:
         urls.append(f'  <url><loc>{base_url}/author/{author["slug"]}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>')
 
-    # Tag pages
-    all_tags = await db.tags.find({}, {"slug": 1}).to_list(500)
+    # Tag pages — exclude empty tags (no articles) to prevent soft 404s
+    all_tags = await db.tags.find({}, {"slug": 1, "name": 1}).to_list(500)
     for tag in all_tags:
+        count = await db.articles.count_documents({
+            **build_public_query(),
+            "tags": {"$in": [tag.get("name", ""), tag["slug"]]}
+        })
+        if count == 0:
+            continue
         urls.append(f'  <url><loc>{base_url}/tag/{tag["slug"]}</loc><changefreq>daily</changefreq><priority>0.5</priority></url>')
 
     xml = f'''<?xml version="1.0" encoding="UTF-8"?>
@@ -2053,36 +2063,54 @@ async def ssr_page(path: str = "/"):
     if path.startswith("tag/"):
         tag_slug = path.split("/", 1)[1]
         tag = await db.tags.find_one({"slug": tag_slug}, {"_id": 0, "name": 1})
-        if tag:
-            tag_name = tag["name"]
-            tag_articles = await db.articles.find(
-                {**build_public_query(), "tags": {"$in": [tag_name, tag_slug]}},
-                {"_id": 0, "title": 1, "slug": 1, "category_slug": 1, "excerpt": 1}
-            ).sort("published_at", -1).limit(20).to_list(20)
-
-            body = f'<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
-            body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">{html_escape(tag_name)}</h1>'
-            if tag_articles:
-                body += '<ul style="list-style:none;padding:0">'
-                for ta in tag_articles:
-                    ta_link = f"/{ta.get('category_slug','crypto')}/{ta['slug']}"
-                    body += f'<li style="margin-bottom:12px"><a href="{ta_link}" style="color:#D4AF37;font-size:16px;font-weight:600">{html_escape(ta["title"])}</a></li>'
-                body += '</ul>'
-            body += '</main>'
-
-            breadcrumb_ld = build_breadcrumb_jsonld([
-                ("Home", base_url),
-                (tag_name, f"{base_url}/tag/{tag_slug}"),
-            ])
-
-            return HTMLResponse(inject_meta(
+        # Tag does not exist → return 404 so Google properly de-lists it (avoids soft 404)
+        if not tag:
+            return HTMLResponse(status_code=404, content=inject_meta(
                 base_html,
-                title=f"{tag_name} News & Articles | AxiomFinity",
-                description=f"All articles tagged with {tag_name} on AxiomFinity. Latest crypto news, analysis, and insights.",
+                title="Tag Not Found | AxiomFinity",
+                description="The tag you are looking for does not exist.",
                 canonical=f"{base_url}/tag/{tag_slug}",
-                json_ld=breadcrumb_ld,
-                body_content=body,
+                extra_meta='<meta name="robots" content="noindex,follow"/>',
+                body_content='<main style="max-width:768px;margin:0 auto;padding:48px 16px;text-align:center"><h1 style="color:#F3F4F6">Tag Not Found</h1><p style="color:#9CA3AF;margin-top:12px">Browse our <a href="/latest" style="color:#D4AF37">latest articles</a> instead.</p></main>',
             ))
+        tag_name = tag["name"]
+        tag_articles = await db.articles.find(
+            {**build_public_query(), "tags": {"$in": [tag_name, tag_slug]}},
+            {"_id": 0, "title": 1, "slug": 1, "category_slug": 1, "excerpt": 1}
+        ).sort("published_at", -1).limit(20).to_list(20)
+
+        body = '<main style="max-width:1200px;margin:0 auto;padding:32px 16px">'
+        body += f'<h1 style="font-size:36px;font-weight:700;color:#F3F4F6;margin-bottom:16px">{html_escape(tag_name)}</h1>'
+        if tag_articles:
+            body += f'<p style="color:#9CA3AF;margin-bottom:24px;line-height:1.7">Latest news and analysis tagged with {html_escape(tag_name)} on AxiomFinity. Browse {len(tag_articles)} articles covering {html_escape(tag_name)} developments, price action, on-chain insights, and ecosystem updates.</p>'
+            body += '<ul style="list-style:none;padding:0">'
+            for ta in tag_articles:
+                ta_link = f"/{ta.get('category_slug','crypto')}/{ta['slug']}"
+                excerpt = html_escape((ta.get("excerpt") or "")[:180])
+                body += f'<li style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid #232B3E"><a href="{ta_link}" style="color:#D4AF37;font-size:17px;font-weight:600">{html_escape(ta["title"])}</a>'
+                if excerpt:
+                    body += f'<p style="color:#9CA3AF;font-size:14px;margin-top:4px">{excerpt}</p>'
+                body += '</li>'
+            body += '</ul>'
+        body += '</main>'
+
+        breadcrumb_ld = build_breadcrumb_jsonld([
+            ("Home", base_url),
+            (tag_name, f"{base_url}/tag/{tag_slug}"),
+        ])
+
+        # noindex thin tag pages (0 articles) — prevents soft 404 flags in GSC
+        extra_tag = '<meta name="robots" content="noindex,follow"/>' if not tag_articles else ""
+
+        return HTMLResponse(inject_meta(
+            base_html,
+            title=f"{tag_name} News & Articles | AxiomFinity",
+            description=f"All articles tagged with {tag_name} on AxiomFinity. Latest crypto news, analysis, and insights.",
+            canonical=f"{base_url}/tag/{tag_slug}",
+            json_ld=breadcrumb_ld,
+            body_content=body,
+            extra_meta=extra_tag,
+        ))
 
     # ─── LEGAL PAGES ───
     legal_slugs = {"privacy-policy": "Privacy Policy", "terms-and-conditions": "Terms and Conditions", "financial-disclaimer": "Financial Disclaimer", "editorial-standards": "Editorial Standards"}
@@ -2260,6 +2288,8 @@ async def ssr_page(path: str = "/"):
             combined_ld += '\n</script>\n<script type="application/ld+json">' + cat_faq_ld
 
         cat_desc_plain = re.sub(r'<[^>]+>', '', cat_desc)[:200] if cat_desc else f"Latest {cat_name.lower()} news and analysis."
+        # noindex empty categories so Google doesn't flag them as soft 404 / thin content
+        extra_meta_cat = '<meta name="robots" content="noindex,follow"/>' if not cat_articles else ""
         return HTMLResponse(inject_meta(
             base_html,
             title=f"{cat_display} | AxiomFinity",
@@ -2267,6 +2297,7 @@ async def ssr_page(path: str = "/"):
             canonical=f"{base_url}/{path}",
             json_ld=combined_ld,
             body_content=body,
+            extra_meta=extra_meta_cat,
         ))
 
     # ─── ARTICLE PAGES (/{category}/{slug}) ───
