@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getAuthHeader } from '../../contexts/AuthContext';
-import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2, Image as ImageIcon, Plus, Trash2, HelpCircle, Link as LinkIcon } from 'lucide-react';
+import { Save, ArrowLeft, Eye, Calendar, Upload, Loader2, Image as ImageIcon, Plus, Trash2, HelpCircle, Link as LinkIcon, Send } from 'lucide-react';
 import TipTapEditor from '../../components/TipTapEditor';
 import MediaLibrary from '../../components/MediaLibrary';
 
@@ -515,6 +515,26 @@ export default function ArticleEditor() {
           >
             <Save className="w-4 h-4" /> {saving ? 'Saving...' : (isEditing ? 'Update Article' : 'Create Article')}
           </button>
+          {isEditing && form.status === 'published' && (
+            <button
+              type="button"
+              onClick={async () => {
+                const url = `https://www.axiomfinity.com/${form.category_slug || 'crypto'}/${form.custom_slug || form.slug}`;
+                try {
+                  const res = await axios.post(`${API}/admin/indexnow/ping-url`, { url }, { headers: getAuthHeader() });
+                  if (res.data?.indexnow_response?.ok) alert(`Pinged IndexNow successfully (Bing + Yandex + Naver notified).`);
+                  else alert(`IndexNow ping failed: ${JSON.stringify(res.data?.indexnow_response)}`);
+                } catch (err) {
+                  alert(`Error: ${err.response?.data?.detail || err.message}`);
+                }
+              }}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-[#D4AF37] border border-[#D4AF37]/40 rounded-lg hover:bg-[#D4AF37]/10 transition-colors"
+              data-testid="indexnow-ping-btn"
+              title="Re-ping Bing + Yandex + Naver to re-crawl this article"
+            >
+              <Send className="w-3.5 h-3.5" /> Ping IndexNow
+            </button>
+          )}
           <button type="button" onClick={() => navigate('/admin/articles')} className="px-4 py-2.5 text-sm text-[#9CA3AF] hover:text-[#F3F4F6] transition-colors">
             Cancel
           </button>

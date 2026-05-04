@@ -117,6 +117,26 @@ r2_client = boto3.client(
 R2_BUCKET = os.environ.get("R2_BUCKET_NAME", "axiomfinity-media")
 R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
 
+# IndexNow integration (Bing + Yandex + Naver instant indexation)
+from indexnow import ping_urls as indexnow_ping, build_article_url as indexnow_article_url, get_key as indexnow_key
+import asyncio
+
+
+def _fire_and_forget(coro):
+    """Schedule an async coroutine to run without blocking the response."""
+    try:
+        loop = asyncio.get_event_loop()
+        loop.create_task(coro)
+    except RuntimeError:
+        pass
+
+
+def notify_indexnow(article: dict):
+    """Queue an IndexNow ping for an article (non-blocking)."""
+    url = indexnow_article_url(article)
+    if url:
+        _fire_and_forget(indexnow_ping([url]))
+
 def upload_to_r2(data: bytes, filename: str, content_type: str) -> str:
     key = f"finnews/{filename}"
     r2_client.put_object(
@@ -285,6 +305,10 @@ async def auto_promote_scheduled():
                     {"$set": {"status": "published", "published_at": art["scheduled_at"]}}
                 )
                 promoted += 1
+                # Ping IndexNow for newly-published scheduled article
+                doc = await db.articles.find_one({"_id": art["_id"]}, {"slug": 1, "category_slug": 1})
+                if doc:
+                    notify_indexnow(doc)
         except Exception:
             continue
     return promoted
@@ -607,6 +631,9 @@ async def admin_create_article(data: ArticleCreate, user: dict = Depends(get_cur
     result = await db.articles.insert_one(doc)
     doc["id"] = str(result.inserted_id)
     doc.pop("_id", None)
+    # Ping IndexNow if article is published immediately
+    if data.status == "published":
+        notify_indexnow(doc)
     return doc
 
 @api_router.put("/admin/articles/{article_id}")
@@ -677,14 +704,49 @@ async def admin_update_article(article_id: str, data: ArticleCreate, user: dict 
         update["slug"] = new_slug
     await db.articles.update_one({"_id": ObjectId(article_id)}, {"$set": update})
     updated = await db.articles.find_one({"_id": ObjectId(article_id)})
+    # Ping IndexNow if article is published (published now or updated while live)
+    if updated and updated.get("status") == "published":
+        notify_indexnow(updated)
     return serialize_doc(updated)
 
 @api_router.delete("/admin/articles/{article_id}")
 async def admin_delete_article(article_id: str, user: dict = Depends(get_current_user)):
+    # Fetch article first to build URL for IndexNow (so Google/Bing know to re-crawl and drop it)
+    doc = await db.articles.find_one({"_id": ObjectId(article_id)}, {"slug": 1, "category_slug": 1, "status": 1})
     result = await db.articles.delete_one({"_id": ObjectId(article_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Article not found")
+    # Ping IndexNow so search engines re-check the deleted URL (and get a 404/301)
+    if doc and doc.get("status") == "published":
+        notify_indexnow(doc)
     return {"message": "Article deleted"}
+
+
+# ─── INDEXNOW ADMIN ENDPOINTS ───
+@api_router.post("/admin/indexnow/ping-recent")
+async def admin_indexnow_ping_recent(limit: int = 20, user: dict = Depends(get_current_user)):
+    """Manually re-ping IndexNow with the N most-recently-published articles. Useful after a bulk content change."""
+    if not indexnow_key():
+        raise HTTPException(status_code=400, detail="IndexNow not configured (INDEXNOW_KEY missing)")
+    articles = await db.articles.find(
+        {"status": "published"},
+        {"slug": 1, "category_slug": 1}
+    ).sort("published_at", -1).limit(limit).to_list(limit)
+    urls = [indexnow_article_url(a) for a in articles]
+    result = await indexnow_ping(urls)
+    return {"pinged": len(urls), "indexnow_response": result}
+
+
+@api_router.post("/admin/indexnow/ping-url")
+async def admin_indexnow_ping_url(body: dict = Body(...), user: dict = Depends(get_current_user)):
+    """Manually ping a single URL. Body: {"url": "https://..."}"""
+    if not indexnow_key():
+        raise HTTPException(status_code=400, detail="IndexNow not configured (INDEXNOW_KEY missing)")
+    url = body.get("url", "")
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+    result = await indexnow_ping([url])
+    return {"url": url, "indexnow_response": result}
 
 # ─── ADMIN CATEGORIES ───
 @api_router.post("/admin/categories", status_code=201)
