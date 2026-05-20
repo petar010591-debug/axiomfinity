@@ -21,13 +21,25 @@ export default function ArticlesList() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Debounce search input → trigger fetch 350ms after typing stops
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchArticles = async () => {
     setLoading(true);
     try {
       const params = { page, limit: 15 };
       if (statusFilter) params.status = statusFilter;
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       const { data } = await axios.get(`${API}/admin/articles`, { headers: getAuthHeader(), params });
       setArticles(data.articles || []);
       setTotal(data.total || 0);
@@ -35,7 +47,7 @@ export default function ArticlesList() {
     } catch {} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchArticles(); }, [page, statusFilter]); // eslint-disable-line
+  useEffect(() => { fetchArticles(); }, [page, statusFilter, debouncedSearch]); // eslint-disable-line
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this article?')) return;
@@ -76,18 +88,44 @@ export default function ArticlesList() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 mb-6" data-testid="article-status-filter">
-        {['', 'published', 'draft', 'scheduled', 'archived'].map(s => (
-          <button
-            key={s}
-            onClick={() => { setStatusFilter(s); setPage(1); }}
-            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-              statusFilter === s ? 'bg-[#D4AF37] text-black' : 'bg-[#121620] text-[#9CA3AF] border border-[#232B3E] hover:border-[#D4AF37]'
-            }`}
-          >
-            {s || 'All'}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="flex items-center gap-2" data-testid="article-status-filter">
+          {['', 'published', 'draft', 'scheduled', 'archived'].map(s => (
+            <button
+              key={s}
+              onClick={() => { setStatusFilter(s); setPage(1); }}
+              className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                statusFilter === s ? 'bg-[#D4AF37] text-black' : 'bg-[#121620] text-[#9CA3AF] border border-[#232B3E] hover:border-[#D4AF37]'
+              }`}
+            >
+              {s || 'All'}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative ml-auto w-full sm:w-72">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280] pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search title or slug..."
+            className="w-full pl-9 pr-9 py-1.5 text-xs bg-[#121620] border border-[#232B3E] rounded-lg text-[#F3F4F6] placeholder-[#6B7280] focus:outline-none focus:border-[#D4AF37] transition-colors"
+            data-testid="articles-search-input"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#F3F4F6] text-sm leading-none px-1"
+              data-testid="articles-search-clear"
+              title="Clear search"
+              type="button"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table */}

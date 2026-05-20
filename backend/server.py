@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from slugify import slugify
 import time
+import re
 
 # Config
 JWT_ALGORITHM = "HS256"
@@ -558,11 +559,15 @@ async def get_homepage_sections():
 
 # ─── ADMIN ROUTES ───
 @api_router.get("/admin/articles")
-async def admin_list_articles(user: dict = Depends(get_current_user), page: int = 1, limit: int = 20, status: Optional[str] = None):
+async def admin_list_articles(user: dict = Depends(get_current_user), page: int = 1, limit: int = 20, status: Optional[str] = None, search: Optional[str] = None):
     await auto_promote_scheduled()
     query = {}
     if status:
         query["status"] = status
+    if search and search.strip():
+        # Case-insensitive search across title and slug
+        regex = {"$regex": re.escape(search.strip()), "$options": "i"}
+        query["$or"] = [{"title": regex}, {"slug": regex}]
     skip = (page - 1) * limit
     total = await db.articles.count_documents(query)
     articles = await db.articles.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
